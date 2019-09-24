@@ -3,6 +3,8 @@ Convolutional Neural Network for non-uniform steady-state 2-D CFD solutions
 
 This is the script for the initial-attempt-quick-and-dirty implementation of using a CNN network to learn to make predictions of non-uniform steady state flows.
 
+The dataset is too big to be uploaded to GitHub. You can donwload it from here: https://drive.google.com/drive/folders/1v-7DQJWBp5QCm10HWZb5v7ua5_00Kt0V?usp=sharing
+
 The dataset contains CFD results of 961 simulations of a flow around a randomly shaped obstacle based on five original shapes (circular, square, forward/backward triangle, and diamond). The dataset is composed of files (Xs and Ys). Xs contains the input features (SDF, X, Y information) and Ys contains the output information (Velocity in X, Velocity in Y, and pressure).
 
 The Xs file contains 4 channels and but I'm ignoring the channel in dimension 1 because it didn't help much. I suggest you to do the same, at least for now. The first channel from the rest is the SDF (signed distance function) as in the Autodesk paper. The other 2 are spatial information (x and Y).
