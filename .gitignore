@@ -6,3 +6,5 @@
 .ipynb_checkpoints/
 
 __pycache__/
+
+*.txt
