@@ -1,0 +1,86 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.nn.utils import weight_norm
+from Models.AutoEncoder import create_layer
+
+
+def create_encoder(in_channels, out_channels, kernel_size, wn=True, bn=True,
+                 activation=nn.ReLU, layers=2):
+    encoder = []
+    for i in range(layers):
+        _in = out_channels
+        _out = out_channels
+        if i == 0:
+            _in = in_channels
+        encoder.append(create_layer(_in, _out, kernel_size, wn, bn, activation, nn.Conv2d))
+    return nn.Sequential(*encoder)
+
+
+def create_decoder(in_channels, out_channels, kernel_size, wn=True, bn=True,
+                 activation=nn.ReLU, layers=2, final_layer=False):
+    decoder = []
+    for i in range(layers):
+        _in = in_channels
+        _out = in_channels
+        _bn = bn
+        _activation = activation
+        if i == 0:
+            _in = in_channels * 2
+        if i == layers - 1:
+            _out = out_channels
+            if final_layer:
+                _bn = False
+                _activation = None
+        decoder.append(create_layer(_in, _out, kernel_size, wn, _bn, _activation, nn.ConvTranspose2d))
+    return nn.Sequential(*decoder)
+
+
+class UNet(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size=3, filters=[16, 32, 64], layers=2,
+                 weight_norm=True, batch_norm=True, activation=nn.ReLU, final_activation=None):
+        super().__init__()
+        assert len(filters) > 0
+        self.final_activation = final_activation
+        encoders = []
+        decoders = []
+        for i in range(len(filters)):
+            if i == 0:
+                encoder_layer = create_encoder(in_channels, filters[i], kernel_size, weight_norm, batch_norm, activation, layers)
+                decoder_layer = create_decoder(filters[i], out_channels, kernel_size, weight_norm, batch_norm, activation, layers, final_layer=True)
+            else:
+                encoder_layer = create_encoder(filters[i-1], filters[i], kernel_size, weight_norm, batch_norm, activation, layers)
+                decoder_layer = create_decoder(filters[i], filters[i-1], kernel_size, weight_norm, batch_norm, activation, layers, final_layer=False)
+            encoders = encoders + [encoder_layer]
+            decoders = [decoder_layer] + decoders
+        self.encoders = nn.Sequential(*encoders)
+        self.decoders = nn.Sequential(*decoders)
+
+    def encode(self, x):
+        tensors = []
+        indices = []
+        sizes = []
+        for encoder in self.encoders:
+            x = encoder(x)
+            sizes.append(x.size())
+            tensors.append(x)
+            x, ind = F.max_pool2d(x, 2, 2, return_indices=True)
+            indices.append(ind)
+        return x, tensors, indices, sizes
+
+    def decode(self, x, tensors, indices, sizes):
+        for decoder in self.decoders:
+            tensor = tensors.pop()
+            size = sizes.pop()
+            ind = indices.pop()
+            x = F.max_unpool2d(x, ind, 2, 2, output_size=size)
+            x = torch.cat([tensor, x], dim=1)
+            x = decoder(x)
+        return x
+
+    def forward(self, x):
+        x, tensors, indices, sizes = self.encode(x)
+        x = self.decode(x, tensors, indices, sizes)
+        if self.final_activation is not None:
+            x = self.final_activation(x)
+        return x

@@ -20,11 +20,10 @@ def create_layer(in_channels, out_channels, kernel_size, wn=True, bn=True,
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, in_channels, out_channels, kernel_size=3, filters=[16, 32, 64], pooling=False,
+    def __init__(self, in_channels, out_channels, kernel_size=3, filters=[16, 32, 64],
                  weight_norm=True, batch_norm=True, activation=nn.ReLU, final_activation=None):
         super().__init__()
         assert len(filters) > 0
-        self.pooling = pooling
         encoder = []
         decoder = []
         for i in range(len(filters)):
@@ -40,17 +39,4 @@ class AutoEncoder(nn.Module):
         self.decoder = nn.Sequential(*decoder)
 
     def forward(self, x):
-        if self.pooling:
-            sizes = []
-            indices = []
-            for encoder in self.encoder:
-                x = encoder(x)
-                sizes.append(x.size())
-                x, ind = F.max_pool2d(x, 2, 2, return_indices=True)
-                indices.append(ind)
-            for decoder in self.decoder:
-                x = F.max_unpool2d(x, indices.pop(), 2, 2, output_size=sizes.pop())
-                x = decoder(x)
-            return x
-        else:
-            return self.decoder(self.encoder(x))
+        return self.decoder(self.encoder(x))
