@@ -1,6 +1,7 @@
 import os
 import json
 import torch
+import random
 import pickle
 import numpy as np
 from evaluation import *
@@ -48,6 +49,50 @@ if __name__ == "__main__":
     # Spliting dataset into 70% train and 30% test
     train_data, test_data = split_tensors(x, y, ratio=0.7)
     train_dataset, test_dataset = TensorDataset(*train_data), TensorDataset(*test_data)
+
+    test_sample_x, test_sample_y = test_dataset[random.randint(0, len(test_dataset))]
+    test_sample_x, test_sample_y = test_sample_x.unsqueeze(0).to(device), test_sample_y.unsqueeze(0).to(device)
+
+    def visualize(sample_y, out_y, error):
+        plt.figure()
+        fig = plt.gcf()
+        fig.set_size_inches(15, 10)
+        plt.subplot(3, 3, 1)
+        plt.title('CFD', fontsize=18)
+        plt.imshow(np.transpose(sample_y[0, 0, :, :]), cmap='jet')
+        plt.colorbar(orientation='horizontal')
+        plt.ylabel('Ux', fontsize=18)
+        plt.subplot(3, 3, 2)
+        plt.title('CNN', fontsize=18)
+        plt.imshow(np.transpose(out_y[0, 0, :, :]), cmap='jet')
+        plt.colorbar(orientation='horizontal')
+        plt.subplot(3, 3, 3)
+        plt.title('Error', fontsize=18)
+        plt.imshow(np.transpose(error[0, 0, :, :]), cmap='jet')
+        plt.colorbar(orientation='horizontal')
+
+        plt.subplot(3, 3, 4)
+        plt.imshow(np.transpose(sample_y[0, 1, :, :]), cmap='jet')
+        plt.colorbar(orientation='horizontal')
+        plt.ylabel('Uy', fontsize=18)
+        plt.subplot(3, 3, 5)
+        plt.imshow(np.transpose(out_y[0, 1, :, :]), cmap='jet')
+        plt.colorbar(orientation='horizontal')
+        plt.subplot(3, 3, 6)
+        plt.imshow(np.transpose(error[0, 1, :, :]), cmap='jet')
+        plt.colorbar(orientation='horizontal')
+
+        plt.subplot(3, 3, 7)
+        plt.imshow(np.transpose(sample_y[0, 2, :, :]), cmap='jet')
+        plt.colorbar(orientation='horizontal')
+        plt.ylabel('p', fontsize=18)
+        plt.subplot(3, 3, 8)
+        plt.imshow(np.transpose(out_y[0, 2, :, :]), cmap='jet')
+        plt.colorbar(orientation='horizontal')
+        plt.subplot(3, 3, 9)
+        plt.imshow(np.transpose(error[0, 2, :, :]), cmap='jet')
+        plt.colorbar(orientation='horizontal')
+        plt.tight_layout()
 
     def train_cnnCFD(config):
         print("Evaluating configuration: ")
@@ -108,21 +153,43 @@ if __name__ == "__main__":
                 m_p_on_batch=lambda scope: float(torch.sum((scope["output"][:,2,:,:] - scope["batch"][1][:,2,:,:]) ** 2)),
                 m_p_on_epoch=lambda scope: sum(scope["list"]) / len(scope["dataset"]), patience=25, after_epoch=after_epoch
                 )
+        # Saving results
         simulation_directory = results_directory + str(config["id"]).zfill(6) + "/"
         if not os.path.exists(simulation_directory):
             os.makedirs(simulation_directory)
-        config["train_metrics"] = train_metrics
-        config["train_loss"] = train_loss
-        config["test_metrics"] = test_metrics
-        config["test_loss"] = test_loss
+        metrics = {}
+        metrics["train_metrics"] = train_metrics
+        metrics["train_loss"] = train_loss
+        metrics["test_metrics"] = test_metrics
+        metrics["test_loss"] = test_loss
+        curves = {}
+        curves["train_loss_curve"] = train_loss_curve
+        curves["test_loss_curve"] = test_loss_curve
+        curves["train_mse_curve"] = train_mse_curve
+        curves["test_mse_curve"] = test_mse_curve
+        curves["train_ux_curve"] = train_ux_curve
+        curves["test_ux_curve"] = test_ux_curve
+        curves["train_uy_curve"] = train_uy_curve
+        curves["test_uy_curve"] = test_uy_curve
+        curves["train_p_curve"] = train_p_curve
+        curves["test_p_curve"] = test_p_curve
         config["model"] = str(config["model"])
-        with open(simulation_directory + "config.json", "w") as file:
+        config["metrics"] = metrics
+        config["curves"] = curves
+        with open(simulation_directory + "results.json", "w") as file:
             json.dump(config, file)
+        # Plotting curves
         plt.figure()
         plt.plot(train_loss_curve, "-r", label='Train')
         plt.plot(test_loss_curve, "-g", label='Validation')
         plt.legend()
         plt.savefig(simulation_directory + "loss.png", bbox_inches='tight')
+        plt.close()
+        plt.figure()
+        plt.plot(train_mse_curve, "-r", label='Train')
+        plt.plot(test_mse_curve, "-g", label='Validation')
+        plt.legend()
+        plt.savefig(simulation_directory + "mse.png", bbox_inches='tight')
         plt.close()
         plt.figure()
         plt.plot(train_ux_curve, "-r", label='Train')
@@ -141,6 +208,12 @@ if __name__ == "__main__":
         plt.plot(test_p_curve, "-g", label='Validation')
         plt.legend()
         plt.savefig(simulation_directory + "p.png", bbox_inches='tight')
+        plt.close()
+        # Plotting results
+        with torch.no_grad():
+            test_sample_out = best_model(test_sample_x)
+        visualize(test_sample_y.cpu().numpy(), test_sample_out.cpu().numpy(), torch.abs(test_sample_y - test_sample_out).cpu().numpy())
+        plt.savefig(simulation_directory + "output.png", bbox_inches='tight')
         plt.close()
         torch.save(best_model, simulation_directory + "model")
         print("Best loss = " + str(test_loss))
@@ -171,3 +244,5 @@ if __name__ == "__main__":
     print("Best configuration: ")
     print(best_config)
     print("Minimum loss = " + str(best_loss))
+    with open(results_directory + "best_config.json", "w") as file:
+        json.dump(best_config, file)
