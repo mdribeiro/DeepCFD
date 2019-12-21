@@ -58,14 +58,17 @@ def create_decoder(out_channels, filters, kernel_size, wn=True, bn=True, activat
     return nn.Sequential(*decoder)
 
 
-class UNet(nn.Module):
+class UNetEx(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size=3, filters=[16, 32, 64], layers=2,
                  weight_norm=True, batch_norm=True, activation=nn.ReLU, final_activation=None):
         super().__init__()
         assert len(filters) > 0
         self.final_activation = final_activation
         self.encoder = create_encoder(in_channels, filters, kernel_size, weight_norm, batch_norm, activation, layers)
-        self.decoder = create_decoder(out_channels, filters, kernel_size, weight_norm, batch_norm, activation, layers)
+        decoders = []
+        for i in range(out_channels):
+            decoders.append(create_decoder(1, filters, kernel_size, weight_norm, batch_norm, activation, layers))
+        self.decoders = nn.Sequential(*decoders)
 
     def encode(self, x):
         tensors = []
@@ -79,15 +82,22 @@ class UNet(nn.Module):
             indices.append(ind)
         return x, tensors, indices, sizes
 
-    def decode(self, x, tensors, indices, sizes):
-        for decoder in self.decoder:
-            tensor = tensors.pop()
-            size = sizes.pop()
-            ind = indices.pop()
-            x = F.max_unpool2d(x, ind, 2, 2, output_size=size)
-            x = torch.cat([tensor, x], dim=1)
-            x = decoder(x)
-        return x
+    def decode(self, _x, _tensors, _indices, _sizes):
+        y = []
+        for _decoder in self.decoders:
+            x = _x
+            tensors = _tensors[:]
+            indices = _indices[:]
+            sizes = _sizes[:]
+            for decoder in _decoder:
+                tensor = tensors.pop()
+                size = sizes.pop()
+                ind = indices.pop()
+                x = F.max_unpool2d(x, ind, 2, 2, output_size=size)
+                x = torch.cat([tensor, x], dim=1)
+                x = decoder(x)
+            y.append(x)
+        return torch.cat(y, dim=1)
 
     def forward(self, x):
         x, tensors, indices, sizes = self.encode(x)
