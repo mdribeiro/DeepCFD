@@ -3,6 +3,7 @@ import json
 import torch
 import random
 import pickle
+import skfmm
 import numpy as np
 from evaluation import *
 from functions import *
@@ -24,6 +25,7 @@ if __name__ == "__main__":
     filters = [[16, 32, 64], [8, 16, 32, 32], [8, 16, 16, 32, 32]]
     batch_norm = [False, True]
     weight_norm = [False, True]
+    weight_decay = [0.005]
 
     # Loading dataset
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -37,7 +39,21 @@ if __name__ == "__main__":
     x = torch.cat((x[:, 0:1, :, :], x[:, 2:, :, :]), dim=1)
     # Adding binary channel to describe the shape of object
     mask = (1 - torch.isnan(x[:, 2:, :, :]).type(torch.float))
-    x = torch.cat([x, mask], dim=1)
+    mask[:, 0, 0, :] = 3
+    mask[:, 0, mask.shape[2]-1, :] = 4
+    mask[:, 0, :, 0] = 2
+    mask[:, 0, :, mask.shape[3]-1] = 2
+    x = torch.cat((x[:, 0:1, :, :], mask), dim=1)
+    # Adding sdf from walls
+    phi = -1*np.ones(x[0, 0, :, :].shape)
+    phi = phi.reshape((1, 1, phi.shape[0], phi.shape[1]))
+    sdf = np.array(phi, copy=True)
+    sdf[0, 0, :, 0] = 1
+    sdf[0, 0, :, 78] = 1
+    d = skfmm.distance(-sdf, dx = 1e-2)
+    d = np.repeat(d, x.shape[0], axis=0)
+    d = torch.FloatTensor(d)
+    x = torch.cat((x, d), dim=1)
     x[torch.isnan(x)] = 0
     y[torch.isnan(y)] = 0
     channels_weights = torch.sqrt(torch.mean(y.permute(0, 2, 3, 1).view(-1, y.shape[1]) ** 2, dim=0)).view(1, -1, 1, 1).to(device)
@@ -53,47 +69,6 @@ if __name__ == "__main__":
     test_sample_x, test_sample_y = test_dataset[random.randint(0, len(test_dataset))]
     test_sample_x, test_sample_y = test_sample_x.unsqueeze(0).to(device), test_sample_y.unsqueeze(0).to(device)
 
-    def visualize(sample_y, out_y, error):
-        plt.figure()
-        fig = plt.gcf()
-        fig.set_size_inches(15, 10)
-        plt.subplot(3, 3, 1)
-        plt.title('CFD', fontsize=18)
-        plt.imshow(np.transpose(sample_y[0, 0, :, :]), cmap='jet')
-        plt.colorbar(orientation='horizontal')
-        plt.ylabel('Ux', fontsize=18)
-        plt.subplot(3, 3, 2)
-        plt.title('CNN', fontsize=18)
-        plt.imshow(np.transpose(out_y[0, 0, :, :]), cmap='jet')
-        plt.colorbar(orientation='horizontal')
-        plt.subplot(3, 3, 3)
-        plt.title('Error', fontsize=18)
-        plt.imshow(np.transpose(error[0, 0, :, :]), cmap='jet')
-        plt.colorbar(orientation='horizontal')
-
-        plt.subplot(3, 3, 4)
-        plt.imshow(np.transpose(sample_y[0, 1, :, :]), cmap='jet')
-        plt.colorbar(orientation='horizontal')
-        plt.ylabel('Uy', fontsize=18)
-        plt.subplot(3, 3, 5)
-        plt.imshow(np.transpose(out_y[0, 1, :, :]), cmap='jet')
-        plt.colorbar(orientation='horizontal')
-        plt.subplot(3, 3, 6)
-        plt.imshow(np.transpose(error[0, 1, :, :]), cmap='jet')
-        plt.colorbar(orientation='horizontal')
-
-        plt.subplot(3, 3, 7)
-        plt.imshow(np.transpose(sample_y[0, 2, :, :]), cmap='jet')
-        plt.colorbar(orientation='horizontal')
-        plt.ylabel('p', fontsize=18)
-        plt.subplot(3, 3, 8)
-        plt.imshow(np.transpose(out_y[0, 2, :, :]), cmap='jet')
-        plt.colorbar(orientation='horizontal')
-        plt.subplot(3, 3, 9)
-        plt.imshow(np.transpose(error[0, 2, :, :]), cmap='jet')
-        plt.colorbar(orientation='horizontal')
-        plt.tight_layout()
-
     def train_cnnCFD(config):
         print("Evaluating configuration: ")
         print(config)
@@ -104,9 +79,10 @@ if __name__ == "__main__":
         filters = config["filters"]
         bn = config["bn"]
         wn = config["wn"]
-        model = model(4, 3, filters=filters, kernel_size=kernel_size,
+        wd = config["wd"]
+        model = model(3, 3, filters=filters, kernel_size=kernel_size,
                     batch_norm=bn, weight_norm=wn)
-        optimizer = torch.optim.AdamW(model.parameters(), lr=lr)
+        optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
 
         train_loss_curve = []
         test_loss_curve = []
@@ -134,7 +110,10 @@ if __name__ == "__main__":
         def loss_func(model, batch):
             x, y = batch
             output = model(x)
-            loss = ((output - y) ** 2) / channels_weights
+            lossu = ((output[:,0,:,:] - y[:,0,:,:]) ** 2).reshape((output.shape[0],1,output.shape[2],output.shape[3])) #/ channels_weights
+            lossv = ((output[:,1,:,:] - y[:,1,:,:]) ** 2).reshape((output.shape[0],1,output.shape[2],output.shape[3])) #/ channels_weights
+            lossp = torch.abs((output[:,2,:,:] - y[:,2,:,:])).reshape((output.shape[0],1,output.shape[2],output.shape[3])) #/ channels_weights
+            loss = (lossu + lossv + lossp)/channels_weights
             return torch.sum(loss), output
         
         # Training model
@@ -212,7 +191,7 @@ if __name__ == "__main__":
         # Plotting results
         with torch.no_grad():
             test_sample_out = best_model(test_sample_x)
-        visualize(test_sample_y.cpu().numpy(), test_sample_out.cpu().numpy(), torch.abs(test_sample_y - test_sample_out).cpu().numpy())
+        visualize(test_sample_y.cpu().numpy(), test_sample_out.cpu().numpy())
         plt.savefig(simulation_directory + "output.png", bbox_inches='tight')
         plt.close()
         torch.save(best_model, simulation_directory + "model")
@@ -227,20 +206,22 @@ if __name__ == "__main__":
                 for bn in batch_norm:
                     for wn in weight_norm:
                         for lr in learning_rates:
-                            config = {
-                                "id" : simulation_id,
-                                "model" : model,
-                                "lr" : lr,
-                                "kernel" : kernel,
-                                "filters" : filter,
-                                "bn" : bn,
-                                "wn" : wn,
-                            }
-                            loss = train_cnnCFD(config)
-                            if loss < best_loss:
-                                best_loss = loss
-                                best_config = config
-                            simulation_id += 1
+                            for wd in weight_decay:
+                                config = {
+                                    "id" : simulation_id,
+                                    "model" : model,
+                                    "lr" : lr,
+                                    "kernel" : kernel,
+                                    "filters" : filter,
+                                    "bn" : bn,
+                                    "wn" : wn,
+                                    "wd" : wd,
+                                }
+                                loss = train_cnnCFD(config)
+                                if loss < best_loss:
+                                    best_loss = loss
+                                    best_config = config
+                                simulation_id += 1
     print("Best configuration: ")
     print(best_config)
     print("Minimum loss = " + str(best_loss))
