@@ -12,6 +12,7 @@ from torch.utils.data import TensorDataset
 from Models.AutoEncoder import AutoEncoder
 from Models.AutoEncoderEx import AutoEncoderEx
 from Models.UNet import UNet
+from Models.UNetEx import UNetEx
 from matplotlib import pyplot as plt
 
 if __name__ == "__main__":
@@ -19,7 +20,7 @@ if __name__ == "__main__":
     if not os.path.exists(results_directory):
         os.makedirs(results_directory)
 
-    models = [AutoEncoder, AutoEncoderEx, UNet]
+    models = [AutoEncoder, AutoEncoderEx, UNet, UNetEx]
     learning_rates = [1e-3, 1e-4, 1e-5]
     kernel_sizes = [3, 5, 7]
     filters = [[16, 32, 64], [8, 16, 32, 32], [8, 16, 16, 32, 32]]
