@@ -1,4 +1,4 @@
-# cnnCFD
+# DeepCFD
 Convolutional Neural Network for non-uniform steady-state 2-D CFD solutions
 
 This is the script for the initial-attempt-quick-and-dirty implementation of using a CNN network to learn to make predictions of non-uniform steady state flows.
