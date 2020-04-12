@@ -1,20 +1,12 @@
 # DeepCFD
-Convolutional Neural Network for non-uniform steady-state 2-D CFD solutions
+# Dataset and Code
 
-This is the script for the initial-attempt-quick-and-dirty implementation of using a CNN network to learn to make predictions of non-uniform steady state flows.
+A toy dataset and the code for this project can be downloaded using the following https://zenodo.org/record/3666056/files/DeepCFD.zip?download=1
 
-The dataset is too big to be uploaded to GitHub. You can donwload it from here: https://drive.google.com/drive/folders/1v-7DQJWBp5QCm10HWZb5v7ua5_00Kt0V?usp=sharing
+The folder includes the files dataX and dataY, in which the first file provides the input information on the geometry of 981 channel flow samples, whereas the dataY file provides their ground-truth CFD solution for the velocity (Ux and Uy) and thepressure (p) fields using the simpleFOAM solver. Figure 1 describes the structure of each of these files in detail:
 
-The dataset contains CFD results of 961 simulations of a flow around a randomly shaped obstacle based on five original shapes (circular, square, forward/backward triangle, and diamond). The dataset is composed of files (Xs and Ys). Xs contains the input features (SDF, X, Y information) and Ys contains the output information (Velocity in X, Velocity in Y, and pressure).
+![CFDAI](./SuppMaterial.eps)
 
-The Xs file contains 4 channels and but I'm ignoring the channel in dimension 1 because it didn't help much. I suggest you to do the same, at least for now. The first channel from the rest is the SDF (signed distance function) as in the Autodesk paper. The other 2 are spatial information (x and Y).
+Both dataX and dataY have the same dimensions (Ns, Nc, Nx, Ny), in which the first axis is the number of samples (Ns), the second axis is the number of channels (Nc), and third and fourth axes are the number of elements in x and y (Nx and Ny). Regarding the input dataX, the first channel is the SDF calculated from the obstacle's surface, the second channel is the multi-label flow region channel, and the third channel is the SDF from the top/bottom surfaces. For the output dataY file, the first channel is the Ux horizontal velocity component, the second channel is the Uy vertical velocity component, and the third channel is the pressure field.
 
-The initial network first creates an spatial representation of the geometry with convolutional operations from the input Xs. This latent spatial representation is then used to make predictions for both velocity components and pressure in a set of three parallel deconvolution operations.
-
-The network I have there right now is the one that gave me the following results:
-
-![CFDAI](./CFDAI.png)
-
-It would be nice to do hyperparameter search before we can go further. There are many paremeters that can be changed. Once we find the best parameters, we will have our baseline Vanilla-CNN model. Then later we can see if we can improve the results even more by incorporating a neural ODE in the encoding part of the network.
-
-I can push my initial implementation with the neural ODE later to the repository as well, but I think for now it would make sense to get a good baseline first with this hyperparameter search before we proceed.
+An example of how to train the DeepCFD model using the settings described in the paper is provided in the "DeepCFD.py" script. A few useful functions are provided in the "functions.py" file, such as a plotting function to visualize the outcome of the model. Moreover, templates with all networks investigated in this study can be found in the folder "Models", including both "AutoEncoder" and "UNet" architecture types with one or multiple decoders.
