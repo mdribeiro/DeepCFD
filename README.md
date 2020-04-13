@@ -15,7 +15,7 @@ Both dataX and dataY have the same dimensions (Ns, Nc, Nx, Ny), in which the fir
 
 An example of how to train the DeepCFD model using the settings described in the paper is provided in the "DeepCFD.py" script. A few useful functions are provided in the "functions.py" file, such as a plotting function to visualize the outcome of the model. Moreover, templates with all networks investigated in this study can be found in the folder "Models", including both "AutoEncoder" and "UNet" architecture types with one or multiple decoders.
 
-# Extra Flow Visualization Plots
+# Flow Visualization Plots - OpenFOAM vs DeepCFD
 
 ![Circle1](./ReadmeFiles/circle1.png)
 > Figure 2. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around circle based shape 1.
