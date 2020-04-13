@@ -56,10 +56,19 @@ Figure 12 shows a schematic representation of the DeepCFD architecture:
 ![arch](./ReadmeFiles/arch.png)
 > Figure 12. DeepCFD U-Net Architecture.
 
-Further hyper-parameters used:
+Further hyper-parameters used are provided in Table 1:
 
-![hyps](./ReadmeFiles/hyps.png)
-> Figure 13. DeepCFD hyper-parameters.
+> Table 1. DeepCFD hyper-parameters.
+
+| Parameter     | Value         | 
+| ------------- |--------------:|
+| Learning rate | 1e-3          | 
+| Kernel size   | 5             | 
+| Filters       | [8,16,32,32]  | 
+| Batch size    | 64            | 
+| Weight decay  | 0.005         | 
+| Batch norm    | off           | 
+| Weight norm   | off           | 
 
 
 
