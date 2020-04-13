@@ -8,9 +8,82 @@ A toy dataset and the code for this project can be downloaded using the followin
 
 The folder includes the files dataX and dataY, in which the first file provides the input information on the geometry of 981 channel flow samples, whereas the dataY file provides their ground-truth CFD solution for the velocity (Ux and Uy) and thepressure (p) fields using the simpleFOAM solver. Figure 1 describes the structure of each of these files in detail:
 
-![CFDAI](./SuppMaterial.png)
+![CFDAI](./ReadmeFiles/DataStruct.png)
 > Figure 1. DeepCFD toy dataset structure.
 
 Both dataX and dataY have the same dimensions (Ns, Nc, Nx, Ny), in which the first axis is the number of samples (Ns), the second axis is the number of channels (Nc), and third and fourth axes are the number of elements in x and y (Nx and Ny). Regarding the input dataX, the first channel is the SDF calculated from the obstacle's surface, the second channel is the multi-label flow region channel, and the third channel is the SDF from the top/bottom surfaces. For the output dataY file, the first channel is the Ux horizontal velocity component, the second channel is the Uy vertical velocity component, and the third channel is the pressure field.
 
 An example of how to train the DeepCFD model using the settings described in the paper is provided in the "DeepCFD.py" script. A few useful functions are provided in the "functions.py" file, such as a plotting function to visualize the outcome of the model. Moreover, templates with all networks investigated in this study can be found in the folder "Models", including both "AutoEncoder" and "UNet" architecture types with one or multiple decoders.
+
+# Extra Flow Visualization Plots
+
+![Circle1](./ReadmeFiles/circle1.png)
+> Figure 2. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around circle based shape 1.
+
+![Circle2](./ReadmeFiles/circle2.png)
+> Figure 3. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around circle based shape 2.
+
+![Square1](./ReadmeFiles/square1.png)
+> Figure 4. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around square based shape 1.
+
+![Square2](./ReadmeFiles/square2.png)
+> Figure 5. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around square based shape 2.
+
+
+![Rhombus1](./ReadmeFiles/rhombus1.png)
+> Figure 6. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around rhombus based shape 1.
+
+![Rhombus2](./ReadmeFiles/rhombus2.png)
+> Figure 7. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around rhombus based shape 2.
+
+
+![TriangleF1](./ReadmeFiles/triangleF1.png)
+> Figure 8. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around forward-facing triangle based shape 1.
+
+![TriangleF2](./ReadmeFiles/triangleF2.png)
+> Figure 9. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around forward-facing triangle based shape 2.
+
+![TriangleB1](./ReadmeFiles/triangleB1.png)
+> Figure 10. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around backward-facing triangle based shape 1.
+
+![TriangleB2](./ReadmeFiles/triangleB2.png)
+> Figure 11. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around backward-facing triangle based shape 2.
+
+# DeepCFD architecture
+
+Figure 12 shows a schematic representation of the DeepCFD architecture:
+
+![arch](./ReadmeFiles/arch.png)
+> Figure 12. DeepCFD U-Net Architecture.
+
+Further hyper-parameters used:
+
+![hyps](./ReadmeFiles/hyps.png)
+> Figure 13. DeepCFD hyper-parameters.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
