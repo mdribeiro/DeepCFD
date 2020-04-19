@@ -2,7 +2,11 @@
 
 Computational Fluid Dynamics (CFD) simulation by the numerical solution of the Navier-Stokes equations is an essential tool in a wide range of applications from engineering design to climate modeling. However, the computational cost and memory demand required by CFD codes may become very high for flows of practical interest, such as in aerodynamic shape optimization. This expense is associated with the complexity of the fluid flow governing equations, which include non-linear partial derivative terms that are of difficult solution, leading to long computational times and limiting the number of hypotheses that can be tested during the process of iterative design. Therefore, we propose DeepCFD: a convolutional neural network (CNN) based model that efficiently approximates solutions for the problem of non-uniform steady laminar flows. The proposed model is able to learn complete solutions of the Navier-Stokes equations, for both velocity and pressure fields, directly from ground-truth data generated using a state-of-the-art CFD code. Using DeepCFD, we found a speedup of up to 3 orders of magnitude compared to the standard CFD approach at a cost of low error rates.
 
-# Dataset and Code
+Paper: TBA
+
+---
+
+## Dataset and Code
 
 A toy dataset and the code for this project can be downloaded using the following https://zenodo.org/record/3666056/files/DeepCFD.zip?download=1
 
@@ -15,7 +19,7 @@ Both dataX and dataY have the same dimensions (Ns, Nc, Nx, Ny), in which the fir
 
 An example of how to train the DeepCFD model using the settings described in the paper is provided in the "DeepCFD.py" script. A few useful functions are provided in the "functions.py" file, such as a plotting function to visualize the outcome of the model. Moreover, templates with all networks investigated in this study can be found in the folder "Models", including both "AutoEncoder" and "UNet" architecture types with one or multiple decoders.
 
-# Flow Visualization Plots - OpenFOAM vs DeepCFD
+## Flow Visualization Plots - OpenFOAM vs DeepCFD
 
 ![Circle1](./ReadmeFiles/circle1.png)
 > Figure 2. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around circle based shape 1.
@@ -49,7 +53,7 @@ An example of how to train the DeepCFD model using the settings described in the
 ![TriangleB2](./ReadmeFiles/triangleB2.png)
 > Figure 11. Comparison between ground-truth CFD (simpleFOAM) and DeepCFD prediction, showing both velocity components, and pressure fields, as well as absolute error in flow around backward-facing triangle based shape 2.
 
-# DeepCFD architecture
+## DeepCFD architecture
 
 Figure 12 shows a schematic representation of the DeepCFD architecture:
 
