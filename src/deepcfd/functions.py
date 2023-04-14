@@ -1,6 +1,5 @@
 import torch.nn as nn
 import numpy as np
-from matplotlib import pyplot as plt
 
 def split_tensors(*tensors, ratio):
     assert len(tensors) > 0
