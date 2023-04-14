@@ -109,7 +109,7 @@ def update_plot():
     plt.colorbar(orientation='horizontal')
 
     plt.subplot(3, 3, 7)
-    plt.ylabel('p [m2/s]', fontsize=18)
+    plt.ylabel('p [m2/s2]', fontsize=18)
     plt.imshow(truth[0, 2, :, :], cmap='jet', vmin = min_p, vmax = max_p, origin='lower', extent=extent)
     plt.colorbar(orientation='horizontal')
     plt.subplot(3, 3, 8)
