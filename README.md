@@ -6,6 +6,48 @@ Paper: https://arxiv.org/abs/2004.08826
 
 ---
 
+## Installation
+
+The module can be installed with:
+
+```
+pip3 install git+https://github.com/carpemonf/DeepCFD.git@master
+
+```
+
+NOTE: replace with `pip3 install deepcfd` if published by the original author of the package afterp pull request.
+
+## Usage
+
+```
+Usage:  python3 -m deepcfd [OPTIONS]
+
+Options:
+    -n, --net           TEXT  network architecture: UNetEx or AutoEncoder (default: UNetEx)
+    -mi, --mmodel-input PATH  input dataset with sdf1,flow-region and sdf2 fields (default: dataX.pkl)
+    -mo, --model-output PATH  output dataset with Ux,Uy and p (default: dataY.pkl)
+    -o, --output        PATH  model output (default: mymodel.pt)
+    -k, --kernel-size   INT   kernel size (default: 5)
+    -f, --filters       TEXT  filter size (default: 8,16,32,32)
+    -l, --learning-rate FLOAT learning rage (default: 0.001)
+    -e, --epochs        INT   number of epochs (default: 1000)
+    -b, --batch-size    INT   training batch size (default: 32)
+    -p, --patience      INT   number of epochs for early stopping (default: 300)
+
+
+Example:
+
+python3 -m deepcfd \
+        --net UNetEx \
+        --model-input DeepCFD/$dataX.pkl \
+        --model-output DeepCFD/dataY.pkl \
+        --output DeepCFD/${name}.pt \
+        --kernel-size 5 \
+        --filters 8,16,32,32 \
+        --epochs 2000 \
+        --batch-size 32 > log.deepcfd
+```
+
 ## Dataset and Code
 
 A toy dataset and the code for this project can be downloaded using the following https://zenodo.org/record/3666056/files/DeepCFD.zip?download=1
