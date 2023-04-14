@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setup(
     name='deepcfd',
-    version='0.1.0',
+    version='2.0.0',
     description='DeepCFD: Efficient Steady-State Laminar Flow'
         'Approximation with Deep Convolutional Neural Networks',
     author='Mateus Dias Ribeiro',
@@ -20,5 +20,7 @@ setup(
         "Operating System :: OS Independent",
     ],
     install_requires=[
+        "torch==2.0.0",
+        "torchvision==0.15.1",
     ],
 )
