@@ -15,7 +15,7 @@ pip3 install git+https://github.com/carpemonf/DeepCFD.git@master
 
 ```
 
-NOTE: replace with `pip3 install deepcfd` if published by the original author of the package afterp pull request.
+NOTE: replace with `pip3 install deepcfd` if published by the original author of the package after the pull request.
 
 ## Usage
 
