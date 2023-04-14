@@ -47,9 +47,9 @@ def parseOpts(argv):
     for opt, arg in opts:
         if opt == '-h' or opt == '--help':
             print("deepcfd "
-                    "\n    -n  --net network architecture: UNetEx or "
+                "\n    -n  <net> network architecture: UNet, UNetEx or "
                     "AutoEncoder (default: UNetEx)"
-                "\n    -mi  --model-input  input dataset with sdf1,"
+                "\n    -mi <model-input>  input dataset with sdf1,"
                     "flow-region and sdf2 fields (default: dataX.pkl)"
                 "\n    -mo <model-output>  output dataset with Ux,"
                     "Uy and p (default: dataY.pkl)"
