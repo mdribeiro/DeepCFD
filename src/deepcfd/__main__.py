@@ -13,6 +13,7 @@ from torch.autograd import Variable
 
 
 def parseOpts(argv):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     net= "UNetEx"
     kernel_size = 5
     filters = [8, 16, 32, 32]
@@ -26,8 +27,9 @@ def parseOpts(argv):
 
     try:
         opts, args = getopt.getopt(
-            argv,"hn:mi:mo:o:k:f:l:e:b:p:x:",
+            argv,"hd:n:mi:mo:o:k:f:l:e:b:p:x:",
             [
+                "device=",
                 "net=",
                 "model-input=",
                 "model-output=",
@@ -47,6 +49,7 @@ def parseOpts(argv):
     for opt, arg in opts:
         if opt == '-h' or opt == '--help':
             print("deepcfd "
+                    "\n    -d  <device> Device: e.g. 'cpu', 'cuda', 'cuda:0', 'cuda:0,cuda:1', ... (default: cuda if available)"
                 "\n    -n  <net> network architecture: UNet, UNetEx or "
                     "AutoEncoder (default: UNetEx)"
                 "\n    -mi <model-input>  input dataset with sdf1,"
@@ -62,6 +65,14 @@ def parseOpts(argv):
                 "\n    -p <patience>  number of epochs for early stopping (default: 300)\n"
             )
             sys.exit()
+        elif opt in ("-d", "--device"):
+            if (arg == "cpu" or arg.startswith("cuda")):
+                device = arg;
+            else:
+                print("Unkown device " + str(arg) + ", only 'cpu', 'cuda'"
+                    "'cuda:index', or comma-separated list of 'cuda:index'"
+                    "are supported")
+                exit(0)
         elif opt in ("-n", "--net"):
             if (arg == "UNet"):
                 from .models.UNet import UNet
@@ -100,6 +111,7 @@ def parseOpts(argv):
         net = UNetEx
 
     options = {
+        'device': device,
         'net': net,
         'model_input': model_input,
         'model_output': model_output,
@@ -116,8 +128,6 @@ def parseOpts(argv):
 
 def main():
     options = parseOpts(sys.argv[1:])
-
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
     x = pickle.load(open(options["model_input"], "rb"))
     y = pickle.load(open(options["model_output"], "rb"))
@@ -136,7 +146,7 @@ def main():
     ny = x.shape[3]
 
     channels_weights = torch.sqrt(torch.mean(y.permute(0, 2, 3, 1)
-        .reshape((batch*nx*ny,3)) ** 2, dim=0)).view(1, -1, 1, 1).to(device)
+        .reshape((batch*nx*ny,3)) ** 2, dim=0)).view(1, -1, 1, 1).to(options["device"])
 
     dirname = os.path.dirname(os.path.abspath(options["output"]))
     if dirname and not os.path.exists(dirname):
@@ -212,7 +222,7 @@ def main():
         optimizer,
         epochs=options["epochs"],
         batch_size=options["batch_size"],
-        device=device,
+        device=options["device"],
         m_mse_name="Total MSE",
         m_mse_on_batch=lambda scope:
             float(torch.sum((scope["output"] - scope["batch"][1]) ** 2)),
