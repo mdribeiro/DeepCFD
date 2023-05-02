@@ -11,11 +11,9 @@ Paper: https://arxiv.org/abs/2004.08826
 The module can be installed with:
 
 ```
-pip3 install git+https://github.com/carpemonf/DeepCFD.git@master
+pip3 install git+https://github.com/mdribeiro/DeepCFD.git@master
 
 ```
-
-NOTE: replace with `pip3 install deepcfd` if published by the original author of the package after the pull request.
 
 ## Usage
 
@@ -23,7 +21,8 @@ NOTE: replace with `pip3 install deepcfd` if published by the original author of
 Usage:  python3 -m deepcfd [OPTIONS]
 
 Options:
-    -n, --net           TEXT  network architecture: UNetEx or AutoEncoder (default: UNetEx)
+    -d, --device        TEXT  network architecture: UNetEx or AutoEncoder (default: UNetEx)
+    -n, --net           TEXT  device: 'cpu', 'cuda', 'cuda:0', 'cuda:0,cuda:1' (default: cuda if available)"
     -mi, --mmodel-input PATH  input dataset with sdf1,flow-region and sdf2 fields (default: dataX.pkl)
     -mo, --model-output PATH  output dataset with Ux,Uy and p (default: dataY.pkl)
     -o, --output        PATH  model output (default: mymodel.pt)
@@ -33,6 +32,7 @@ Options:
     -e, --epochs        INT   number of epochs (default: 1000)
     -b, --batch-size    INT   training batch size (default: 32)
     -p, --patience      INT   number of epochs for early stopping (default: 300)
+    -v, --visualize           flag for visualizing ground-truth vs prediction plots (default: False)
 
 
 Example:
