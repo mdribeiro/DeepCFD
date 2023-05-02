@@ -22,5 +22,6 @@ setup(
     install_requires=[
         "torch==2.0.0",
         "torchvision==0.15.1",
+        "matplotlib>=3.0.0,<=3.7.1"
     ],
 )

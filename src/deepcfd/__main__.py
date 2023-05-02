@@ -24,10 +24,11 @@ def parseOpts(argv):
     epochs = 2000
     batch_size = 32
     patience = 500
+    visualize = False
 
     try:
         opts, args = getopt.getopt(
-            argv,"hd:n:mi:mo:o:k:f:l:e:b:p:x:",
+            argv,"hd:n:mi:mo:o:k:f:l:e:b:p:v",
             [
                 "device=",
                 "net=",
@@ -39,17 +40,19 @@ def parseOpts(argv):
                 "learning-rate=",
                 "epochs=",
                 "batch-size=",
-                "patience="
+                "patience=",
+                "visualize"
             ]
         )
-    except getopt.GietoptError as e:
+    except getopt.GetoptError as e:
+       print(e)
        print("python -m deepcfd --help")
        sys.exit(2)
 
     for opt, arg in opts:
         if opt == '-h' or opt == '--help':
             print("deepcfd "
-                    "\n    -d  <device> Device: e.g. 'cpu', 'cuda', 'cuda:0', 'cuda:0,cuda:1', ... (default: cuda if available)"
+                "\n    -d  <device> device: 'cpu', 'cuda', 'cuda:0', 'cuda:0,cuda:n', (default: cuda if available)"
                 "\n    -n  <net> network architecture: UNet, UNetEx or "
                     "AutoEncoder (default: UNetEx)"
                 "\n    -mi <model-input>  input dataset with sdf1,"
@@ -62,7 +65,8 @@ def parseOpts(argv):
                 "\n    -l <learning-rate>  learning rate (default: 0.001)"
                 "\n    -e <epochs>  number of epochs (default: 1000)"
                 "\n    -b <batch-size>  training batch size (default: 32)"
-                "\n    -p <patience>  number of epochs for early stopping (default: 300)\n"
+                "\n    -p <patience>  number of epochs for early stopping (default: 300)"
+                "\n    -v <visualize> flag for visualizing ground-truth vs prediction plots (default: False)\n"
             )
             sys.exit()
         elif opt in ("-d", "--device"):
@@ -105,6 +109,8 @@ def parseOpts(argv):
             output = arg
         elif opt in ("-p", "--patience"):
             patience = arg
+        elif opt in ("-v", "--visualize"):
+            visualize = True
 
     if '--net' not in sys.argv or '-n' not in sys.argv:
         from .models.UNetEx import UNetEx
@@ -122,6 +128,7 @@ def parseOpts(argv):
         'epochs': epochs,
         'batch_size': batch_size,
         'patience': patience,
+        'visualize': visualize,
     }
 
     return options
@@ -256,6 +263,17 @@ def main():
     state_dict["architecture"] = options["net"]
     
     torch.save(state_dict, options["output"])
+
+    if (options["visualize"]):
+        out = DeepCFD(test_x[:10].to(options["device"]))
+        error = torch.abs(out.cpu() - test_y[:10].cpu())
+        s = 0
+        visualize(
+            test_y[:10].cpu().detach().numpy(),
+            out[:10].cpu().detach().numpy(),
+            error[:10].cpu().detach().numpy(),
+            s
+       )
 
 if __name__ == "__main__":
     main()
