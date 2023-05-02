@@ -6,14 +6,14 @@ import torch
 import pickle
 import matplotlib
 import numpy as np
-from cfdonnx.models.torch.UNetEx import UNetEx
+from deepcfd.models.UNetEx import UNetEx
 from matplotlib import pyplot as plt
 
 matplotlib.use('tkagg')
 
-model_file="checkpoint.pt"
-data_x_file="DeepCFD/flowAroundObstaclesX.pkl"
-data_y_file="DeepCFD/flowAroundObstaclesY.pkl"
+model_filename="checkpoint.pt"
+data_x_filename="dataX.pkl"
+data_y_filename="dataY.pkl"
 
 index = 200
 
@@ -49,8 +49,8 @@ model = UNetEx(
     weight_norm=wn
 )
 
-x = pickle.load(open(data_x_file, "rb"))
-y = pickle.load(open(data_y_file, "rb"))
+x = pickle.load(open(data_x_filename, "rb"))
+y = pickle.load(open(data_y_filename, "rb"))
 
 x = torch.FloatTensor(x)
 y = torch.FloatTensor(y)
