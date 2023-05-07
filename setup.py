@@ -8,7 +8,8 @@ setup(
     version='2.0.0',
     description='DeepCFD: Efficient Steady-State Laminar Flow'
         'Approximation with Deep Convolutional Neural Networks',
-    author='Mateus Dias Ribeiro',
+    author='Mateus Dias Ribeiro, Carlos Peña Monferrer',
+    author_email='mateusdiasbr@gmail.com',
     long_description=long_description,
     long_description_content_type='text/markdown',
     url='https://github.com/mdribeiro/DeepCFD',
