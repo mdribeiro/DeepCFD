@@ -1,5 +1,6 @@
 import copy
 import torch
+from .pytorchtools import EarlyStopping
 
 
 def generate_metrics_list(metrics_def):
@@ -54,6 +55,9 @@ def epoch(scope, loader, on_batch=None, training=False):
 
 def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_function=print, eval_model=None,
           on_train_batch=None, on_val_batch=None, on_train_epoch=None, on_val_epoch=None, after_epoch=None):
+
+    early_stopping = EarlyStopping(patience, verbose=True)
+
     epochs = scope["epochs"]
     model = scope["model"]
     metrics_def = scope["metrics_def"]
@@ -70,15 +74,15 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
     skips = 0
     for epoch_id in range(1, epochs + 1):
         scope["epoch"] = epoch_id
-        print_function("Epoch #" + str(epoch_id))
+        print_function("Epoch #" + str(epoch_id), flush=True)
         # Training
         scope["dataset"] = train_dataset
         train_loss, train_metrics = epoch(scope, train_loader, on_train_batch, training=True)
         scope["train_loss"] = train_loss
         scope["train_metrics"] = train_metrics
-        print_function("\tTrain Loss = " + str(train_loss))
+        print_function("\tTrain Loss = " + str(train_loss), flush=True)
         for name in metrics_def.keys():
-            print_function("\tTrain " + metrics_def[name]["name"] + " = " + str(train_metrics[name]))
+            print_function("\tTrain " + metrics_def[name]["name"] + " = " + str(train_metrics[name]), flush=True)
         if on_train_epoch is not None:
             on_train_epoch(scope)
         del scope["dataset"]
@@ -88,9 +92,9 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
             val_loss, val_metrics = epoch(scope, val_loader, on_val_batch, training=False)
         scope["val_loss"] = val_loss
         scope["val_metrics"] = val_metrics
-        print_function("\tValidation Loss = " + str(val_loss))
+        print_function("\tValidation Loss = " + str(val_loss), flush=True)
         for name in metrics_def.keys():
-            print_function("\tValidation " + metrics_def[name]["name"] + " = " + str(val_metrics[name]))
+            print_function("\tValidation " + metrics_def[name]["name"] + " = " + str(val_metrics[name]), flush=True)
         if on_val_epoch is not None:
             on_val_epoch(scope)
         del scope["dataset"]
@@ -106,12 +110,16 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
             scope["best_val_metrics"] = val_metrics
             scope["best_val_loss"] = val_loss
             scope["best_model"] = copy.deepcopy(model)
-            print_function("Model saved!")
+            print_function("Model saved!", flush=True)
             skips = 0
         else:
             skips += 1
         if after_epoch is not None:
             after_epoch(scope)
+        early_stopping(val_loss, scope["best_model"])
+        if early_stopping.early_stop:
+            print_function("Early stopping", flush=True)
+            break
 
     return scope["best_model"], scope["best_train_metric"], scope["best_train_loss"],\
            scope["best_val_metrics"], scope["best_val_loss"]
