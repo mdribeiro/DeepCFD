@@ -21,8 +21,8 @@ pip3 install git+https://github.com/mdribeiro/DeepCFD.git@master
 Usage:  python3 -m deepcfd [OPTIONS]
 
 Options:
-    -d, --device        TEXT  network architecture: UNetEx or AutoEncoder (default: UNetEx)
-    -n, --net           TEXT  device: 'cpu', 'cuda', 'cuda:0', 'cuda:0,cuda:1' (default: cuda if available)"
+    -d, --device        TEXT  device: 'cpu', 'cuda', 'cuda:0', 'cuda:0,cuda:1' (default: cuda if available)
+    -n, --net           TEXT  network architecture: UNetEx or AutoEncoder (default: UNetEx)
     -mi, --mmodel-input PATH  input dataset with sdf1,flow-region and sdf2 fields (default: dataX.pkl)
     -mo, --model-output PATH  output dataset with Ux,Uy and p (default: dataY.pkl)
     -o, --output        PATH  model output (default: mymodel.pt)
