@@ -61,10 +61,6 @@ def parseOpts(argv):
             model_input = arg
         elif opt in ("-mo", "--model-output"):
             model_output = arg
-        elif opt in ("-k", "--kernel-size"):
-            kernel_size = int(arg)
-        elif opt in ("-f", "--filters"):
-            filters = [int(x) for x in arg.split(',')]
         elif opt in ("-l", "--learning-rate"):
             learning_rate = float(arg)
         elif opt in ("-e", "--epochs"):
