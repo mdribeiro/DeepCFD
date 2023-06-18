@@ -1,6 +1,7 @@
 import copy
 import torch
 from .pytorchtools import EarlyStopping
+from deepcfd.functions import ModifiedTensorDataset
 
 
 def generate_metrics_list(metrics_def):
@@ -70,7 +71,11 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
     scope["best_model"] = None
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    if isinstance(train_dataset, ModifiedTensorDataset):
+        train_loader = train_loader.dataset
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    if isinstance(val_dataset, ModifiedTensorDataset):
+        val_loader = val_loader.dataset
     skips = 0
     for epoch_id in range(1, epochs + 1):
         scope["epoch"] = epoch_id
@@ -88,7 +93,10 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
         del scope["dataset"]
         # Validation
         scope["dataset"] = val_dataset
-        with torch.no_grad():
+        if not scope["physics_informed"]:
+            with torch.no_grad():
+                val_loss, val_metrics = epoch(scope, val_loader, on_val_batch, training=False)
+        else:
             val_loss, val_metrics = epoch(scope, val_loader, on_val_batch, training=False)
         scope["val_loss"] = val_loss
         scope["val_metrics"] = val_metrics
@@ -98,28 +106,31 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
         if on_val_epoch is not None:
             on_val_epoch(scope)
         del scope["dataset"]
+        scope["best_model"] = model
         # Selection
-        is_best = None
-        if eval_model is not None:
-            is_best = eval_model(scope)
-        if is_best is None:
-            is_best = val_loss < scope["best_val_loss"]
-        if is_best:
-            scope["best_train_metric"] = train_metrics
-            scope["best_train_loss"] = train_loss
-            scope["best_val_metrics"] = val_metrics
-            scope["best_val_loss"] = val_loss
-            scope["best_model"] = copy.deepcopy(model)
-            print_function("Model saved!", flush=True)
-            skips = 0
-        else:
-            skips += 1
-        if after_epoch is not None:
-            after_epoch(scope)
-        early_stopping(val_loss, scope["best_model"])
-        if early_stopping.early_stop:
-            print_function("Early stopping", flush=True)
-            break
+        if not scope["physics_informed"]:
+            # No need for early stopping for PINNs since no pure data fit is done
+            is_best = None
+            if eval_model is not None:
+                is_best = eval_model(scope)
+            if is_best is None:
+                is_best = val_loss < scope["best_val_loss"]
+            if is_best:
+                scope["best_train_metric"] = train_metrics
+                scope["best_train_loss"] = train_loss
+                scope["best_val_metrics"] = val_metrics
+                scope["best_val_loss"] = val_loss
+                scope["best_model"] = copy.deepcopy(model)
+                print_function("Model saved!", flush=True)
+                skips = 0
+            else:
+                skips += 1
+            if after_epoch is not None:
+                after_epoch(scope)
+            early_stopping(val_loss, scope["best_model"])
+            if early_stopping.early_stop:
+                print_function("Early stopping", flush=True)
+                break
 
     return scope["best_model"], scope["best_train_metric"], scope["best_train_loss"],\
            scope["best_val_metrics"], scope["best_val_loss"]
@@ -127,7 +138,7 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
 
 def train_model(model, loss_func, train_dataset, val_dataset, optimizer, process_batch=None, eval_model=None,
                 on_train_batch=None, on_val_batch=None, on_train_epoch=None, on_val_epoch=None, after_epoch=None,
-                epochs=100, batch_size=256, patience=10, device=0, **kwargs):
+                epochs=100, batch_size=256, patience=10, device=0, physics_informed=False, **kwargs):
     model = model.to(device)
     scope = {}
     scope["model"] = model
@@ -139,6 +150,7 @@ def train_model(model, loss_func, train_dataset, val_dataset, optimizer, process
     scope["epochs"] = epochs
     scope["batch_size"] = batch_size
     scope["device"] = device
+    scope["physics_informed"] = physics_informed
     metrics_def = {}
     names = []
     for key in kwargs.keys():

@@ -50,7 +50,8 @@ python3 -m deepcfd \
 
 ## Dataset and Code
 
-A toy dataset and the code for this project can be downloaded using the following https://zenodo.org/record/3666056/files/DeepCFD.zip?download=1
+A toy dataset and the code for this project can be downloaded using the following link: https://zenodo.org/record/3666056/files/DeepCFD.zip?download=1
+For the MLP dataset (X has x and y coordinates as input), the link is the following: https://zenodo.org/record/8042938/files/DeepCFD_MLPData.zip?download=1
 
 The folder includes the files dataX and dataY, in which the first file provides the input information on the geometry of 981 channel flow samples, whereas the dataY file provides their ground-truth CFD solution for the velocity (Ux and Uy) and thepressure (p) fields using the simpleFOAM solver. Figure 1 describes the structure of each of these files in detail:
 
