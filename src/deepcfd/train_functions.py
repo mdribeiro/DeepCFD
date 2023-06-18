@@ -1,6 +1,7 @@
 import copy
 import torch
 from .pytorchtools import EarlyStopping
+from deepcfd.functions import ModifiedTensorDataset
 
 
 def generate_metrics_list(metrics_def):
@@ -70,7 +71,11 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
     scope["best_model"] = None
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    if isinstance(train_dataset, ModifiedTensorDataset):
+        train_loader = train_loader.dataset
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
+    if isinstance(val_dataset, ModifiedTensorDataset):
+        val_loader = val_loader.dataset
     skips = 0
     for epoch_id in range(1, epochs + 1):
         scope["epoch"] = epoch_id

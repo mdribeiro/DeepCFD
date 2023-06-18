@@ -1,6 +1,48 @@
+import torch
 import torch.nn as nn
 import numpy as np
 from matplotlib import pyplot as plt
+
+
+class ModifiedTensorDataset(torch.utils.data.Dataset):
+    """
+    Modified torch dataset which allows to wrap tensors which do not have
+    the same length along their first dimension. The length of the dataset
+    is the maximum length of all passed tensors. For all other tensors,
+    the samples are retrieved by repeating from the initial sample for
+    indices which are larger than the length of the respecive tensor.
+    """
+
+    def __init__(self, *tensors):
+        """
+        :param *tensors: a tuple of tensors. Samples are retrieved by
+            indexing along the first dimension of each tensor
+        :type *tensors: tuple(Tensor)
+        """
+        self.tensors_x = tensors[0]
+        self.tensors_y = tensors[1]
+        self.tensors = tensors
+        # self.lengths = tuple([len(tensor[0][ind]) for ind, tensor in enumerate(self.tensors)])
+        self.lengths = tuple([tensor.size(0) for tensor in self.tensors_x])
+
+    def __getitem__(self, index):
+        """
+        Returns the sample at the index.
+
+        :param index: index to retrieve sample from
+        :type index: int
+        """
+        return tuple([tensor[index % length] for tensor, length in zip(self.tensors, self.lengths)])
+
+    def __len__(self):
+        """
+        Length of the datset which is the length of the longest tensor
+
+        :return: length of dataset
+        :rtype: int
+        """
+        return max(self.lengths)
+
 
 def split_tensors(*tensors, ratio):
     assert len(tensors) > 0
@@ -21,7 +63,7 @@ def initialize(model, gain=1, std=0.02):
             if module.bias is not None:
                 nn.init.normal_(module.bias, 0, std)
 
-def visualize(sample_y, out_y, error, s):
+def visualize(sample_y, out_y, error, s, savePath="./run.png"):
     minu = np.min(sample_y[s, 0, :, :])
     maxu = np.max(sample_y[s, 0, :, :])
 
@@ -84,4 +126,71 @@ def visualize(sample_y, out_y, error, s):
     plt.imshow(np.transpose(error[s, 2, :, :]), vmin = minep, vmax = maxep, **plot_options)
     plt.colorbar(orientation='horizontal')
     plt.tight_layout()
+    plt.savefig(savePath)
+    plt.show()
+
+
+def visualizeScatter(sample_y, out_y, sample_x, savePath="./run.png"):
+    error = out_y - sample_y
+
+    minu = np.min(sample_y[:, 0])
+    maxu = np.max(sample_y[:, 0])
+
+    minv = np.min(sample_y[:, 1])
+    maxv = np.max(sample_y[:, 1])
+
+    minp = np.min(sample_y[:, 2])
+    maxp = np.max(sample_y[:, 2])
+
+    mineu = np.min(error[:, 0])
+    maxeu = np.max(error[:, 0])
+
+    minev = np.min(error[:, 1])
+    maxev = np.max(error[:, 1])
+
+    minep = np.min(error[:, 2])
+    maxep = np.max(error[:, 2])
+
+    plot_options = {'cmap': 'jet'}
+
+    plt.figure()
+    fig = plt.gcf()
+    fig.set_size_inches(15, 10)
+    plt.subplot(3, 3, 1)
+    plt.title('CFD', fontsize=18)
+    plt.scatter(sample_x[:, 0], sample_x[:, 1], c=sample_y[:, 0], vmin=minu, vmax=maxu, **plot_options)
+    plt.colorbar(orientation='horizontal')
+    plt.ylabel('Ux', fontsize=18)
+    plt.subplot(3, 3, 2)
+    plt.title('MLP', fontsize=18)
+    plt.scatter(sample_x[:, 0], sample_x[:, 1], c=out_y[:, 0], vmin=minu, vmax=maxu, **plot_options)
+    plt.colorbar(orientation='horizontal')
+    plt.subplot(3, 3, 3)
+    plt.title('Error', fontsize=18)
+    plt.scatter(sample_x[:, 0], sample_x[:, 1], c=error[:, 0], vmin=minu, vmax=maxu, **plot_options)
+    plt.colorbar(orientation='horizontal')
+
+    plt.subplot(3, 3, 4)
+    plt.scatter(sample_x[:, 0], sample_x[:, 1], c=sample_y[:, 1], vmin=minv, vmax=maxv, **plot_options)
+    plt.colorbar(orientation='horizontal')
+    plt.ylabel('Uy', fontsize=18)
+    plt.subplot(3, 3, 5)
+    plt.scatter(sample_x[:, 0], sample_x[:, 1], c=out_y[:, 1], vmin=minv, vmax=maxv, **plot_options)
+    plt.colorbar(orientation='horizontal')
+    plt.subplot(3, 3, 6)
+    plt.scatter(sample_x[:, 0], sample_x[:, 1], c=error[:, 1], vmin=minv, vmax=maxv, **plot_options)
+    plt.colorbar(orientation='horizontal')
+
+    plt.subplot(3, 3, 7)
+    plt.scatter(sample_x[:, 0], sample_x[:, 1], c=sample_y[:, 2], vmin=minp, vmax=maxp, **plot_options)
+    plt.colorbar(orientation='horizontal')
+    plt.ylabel('p', fontsize=18)
+    plt.subplot(3, 3, 8)
+    plt.scatter(sample_x[:, 0], sample_x[:, 1], c=out_y[:, 2], vmin=minp, vmax=maxp, **plot_options)
+    plt.colorbar(orientation='horizontal')
+    plt.subplot(3, 3, 9)
+    plt.scatter(sample_x[:, 0], sample_x[:, 1], c=error[:, 2], vmin=minp, vmax=maxp, **plot_options)
+    plt.colorbar(orientation='horizontal')
+    plt.tight_layout()
+    plt.savefig(savePath)
     plt.show()
