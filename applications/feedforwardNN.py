@@ -231,7 +231,4 @@ if __name__ == "__main__":
         sample_y = test_y[idx].cpu().detach().numpy()
         visualizeScatter(sample_y, out_y, sample_x, savePath="./run.png")
 
-# python3 applications/feedforwardNN.py  --model-input ./xMLP.pkl --model-output ./yMLP.pkl  --epochs 10 --batch-size 32 --visualize True
-# python3 applications/feedforwardNN.py  --model-input ./xMLP.pkl --model-output ./yMLP.pkl  --epochs 10 --batch-size 32 --visualize True --device cpu
-# %run applications/feedforwardNN.py  --model-input ./xMLP.pkl --model-output ./yMLP.pkl  --epochs 10 --batch-size 32 --visualize True
 # %run applications/feedforwardNN.py  --model-input ./xMLP.pkl --model-output ./yMLP.pkl  --epochs 100 --batch-size 1024 --visualize True
