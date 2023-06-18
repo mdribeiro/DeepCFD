@@ -5,42 +5,17 @@ from matplotlib import pyplot as plt
 
 
 class ModifiedTensorDataset(torch.utils.data.Dataset):
-    """
-    Modified torch dataset which allows to wrap tensors which do not have
-    the same length along their first dimension. The length of the dataset
-    is the maximum length of all passed tensors. For all other tensors,
-    the samples are retrieved by repeating from the initial sample for
-    indices which are larger than the length of the respecive tensor.
-    """
 
     def __init__(self, *tensors):
-        """
-        :param *tensors: a tuple of tensors. Samples are retrieved by
-            indexing along the first dimension of each tensor
-        :type *tensors: tuple(Tensor)
-        """
         self.tensors_x = tensors[0]
         self.tensors_y = tensors[1]
         self.tensors = tensors
-        # self.lengths = tuple([len(tensor[0][ind]) for ind, tensor in enumerate(self.tensors)])
         self.lengths = tuple([tensor.size(0) for tensor in self.tensors_x])
 
     def __getitem__(self, index):
-        """
-        Returns the sample at the index.
-
-        :param index: index to retrieve sample from
-        :type index: int
-        """
         return tuple([tensor[index % length] for tensor, length in zip(self.tensors, self.lengths)])
 
     def __len__(self):
-        """
-        Length of the datset which is the length of the longest tensor
-
-        :return: length of dataset
-        :rtype: int
-        """
         return max(self.lengths)
 
 
