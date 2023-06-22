@@ -30,11 +30,25 @@ def epoch(scope, loader, on_batch=None, training=False):
             tensors = scope["process_batch"](tensors)
         if "device" in scope and scope["device"] is not None:
             tensors = [tensor.to(scope["device"]) for tensor in tensors]
-        loss, output = loss_func(model, tensors)
-        if training:
+
+        if not training:
+            loss, output = loss_func(model, tensors)
+        elif training and not isinstance(optimizer, torch.optim.LBFGS):
+            loss, output = loss_func(model, tensors)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+        elif training and isinstance(optimizer, torch.optim.LBFGS):
+            def closure():
+                loss, output = loss_func(model, tensors)
+                model.loss = loss
+                model.output = output
+                optimizer.zero_grad()
+                loss.backward()
+                return loss
+            optimizer.step(closure)
+            loss = model.loss
+            output = model.output
         total_loss += loss.item()
         scope["batch"] = tensors
         scope["loss"] = loss
@@ -55,7 +69,8 @@ def epoch(scope, loader, on_batch=None, training=False):
 
 
 def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_function=print, eval_model=None,
-          on_train_batch=None, on_val_batch=None, on_train_epoch=None, on_val_epoch=None, after_epoch=None):
+          on_train_batch=None, on_val_batch=None, on_train_epoch=None, on_val_epoch=None, after_epoch=None,
+          initial_epoch=1):
 
     early_stopping = EarlyStopping(patience, verbose=True)
 
@@ -69,6 +84,7 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
     scope["best_val_metrics"] = None
     scope["best_val_loss"] = float("inf")
     scope["best_model"] = None
+    scope["last_epoch"] = initial_epoch + epochs - 1
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     if isinstance(train_dataset, ModifiedTensorDataset):
@@ -77,7 +93,7 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
     if isinstance(val_dataset, ModifiedTensorDataset):
         val_loader = val_loader.dataset
     skips = 0
-    for epoch_id in range(1, epochs + 1):
+    for epoch_id in range(initial_epoch, initial_epoch + epochs):
         scope["epoch"] = epoch_id
         print_function("Epoch #" + str(epoch_id), flush=True)
         # Training
@@ -133,12 +149,12 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
                 break
 
     return scope["best_model"], scope["best_train_metric"], scope["best_train_loss"],\
-           scope["best_val_metrics"], scope["best_val_loss"]
+           scope["best_val_metrics"], scope["best_val_loss"], scope["last_epoch"]
 
 
 def train_model(model, loss_func, train_dataset, val_dataset, optimizer, process_batch=None, eval_model=None,
                 on_train_batch=None, on_val_batch=None, on_train_epoch=None, on_val_epoch=None, after_epoch=None,
-                epochs=100, batch_size=256, patience=10, device=0, physics_informed=False, **kwargs):
+                epochs=100, batch_size=256, patience=10, device=0, physics_informed=False, initial_epoch=1, **kwargs):
     model = model.to(device)
     scope = {}
     scope["model"] = model
@@ -170,4 +186,4 @@ def train_model(model, loss_func, train_dataset, val_dataset, optimizer, process
     scope["metrics_def"] = metrics_def
     return train(scope, train_dataset, val_dataset, eval_model=eval_model, on_train_batch=on_train_batch,
            on_val_batch=on_val_batch, on_train_epoch=on_train_epoch, on_val_epoch=on_val_epoch, after_epoch=after_epoch,
-           batch_size=batch_size, patience=patience)
+           batch_size=batch_size, patience=patience, initial_epoch=initial_epoch)
