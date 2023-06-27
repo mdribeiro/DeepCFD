@@ -37,8 +37,8 @@ def circle(r=0.02, xc=0, yc=0, n_samples=100):
 def parseOpts(argv):
     device = "cpu" #torch.device("cuda" if torch.cuda.is_available() else "cpu")
     output = "mymodel.pt"
-    learning_rate = 0.001
-    epochs = 500
+    learning_rate = 1e-3  # 0.001
+    epochs = [10, 10]
     batch_size = 1024  #21322 #1024
     patience = 500
     visualize = False
@@ -73,7 +73,7 @@ def parseOpts(argv):
         elif opt in ("-l", "--learning-rate"):
             learning_rate = float(arg)
         elif opt in ("-e", "--epochs"):
-            epochs = int(arg)
+            epochs = list(map(int, list(arg.split(", "))))  # int(arg)
         elif opt in ("-b", "--batch-size"):
             batch_size = int(arg)
         elif opt in ("-o", "--output"):
@@ -91,6 +91,7 @@ def parseOpts(argv):
         'epochs': epochs,
         'batch_size': batch_size,
         'patience': patience,
+        'show_mesh': False,
         'visualize': visualize,
     }
 
@@ -131,14 +132,16 @@ if __name__ == "__main__":
                               number in np.random.randint(0, 2, n_samples)]).reshape((n_samples, 1))
     points_topbottom = np.concatenate((x_topbottom, y_topbottom), axis=1)
 
-    # plt.scatter(points_f[:, 0], points_f[:,1]), plt.scatter(points_surface[:, 0], points_surface[:, 1], color="red"),  
-    # plt.scatter(points_left[:, 0], points_left[:, 1], color="magenta")
-    # plt.scatter(points_right[:, 0], points_right[:, 1], color="yellow")
-    # plt.scatter(points_topbottom[:, 0], points_topbottom[:, 1], color="black")
-    # plt.show()
+    if options["show_mesh"]:
+        plt.scatter(points_f[:, 0], points_f[:,1]), plt.scatter(points_surface[:, 0], points_surface[:, 1], color="red"),  
+        plt.scatter(points_left[:, 0], points_left[:, 1], color="magenta")
+        plt.scatter(points_right[:, 0], points_right[:, 1], color="yellow")
+        plt.scatter(points_topbottom[:, 0], points_topbottom[:, 1], color="black")
+        plt.show()
 
     # neurons_list = [10, 10, 10, 10, 10]
-    neurons_list = [80, 80, 80, 80]
+    # neurons_list = [80, 80, 80, 80]
+    neurons_list = [30, 30, 30, 30, 30]
     model = options["net"](
         2,
         3,
@@ -248,22 +251,6 @@ if __name__ == "__main__":
         xRight.requires_grad = True
         xTopBottom.requires_grad = True
 
-        # x = xInside[:, 0:1]
-        # y = xInside[:, 1:2]
-        # out = model(torch.cat([x, y], dim=1))
-        # u = out[:, 0:1]
-        # v = out[:, 1:2]
-        # rho = out[:, 2:3]
-        # e = out[:, 3:4]
-        # Cp = 1.005
-        # Cv = 0.718
-        # gamma = Cp / Cv
-        # E = e - rho * (u**2 + v**2) / 2
-        # p = rho * (gamma - 1) * E
-        # h = e + p / rho
-        # rho_h_u = rho * h * u
-        # rho_h_v = rho * h * v
-
         x = xInside[:, 0:1]
         y = xInside[:, 1:2]
         out = model(torch.cat([x, y], dim=1))
@@ -296,6 +283,13 @@ if __name__ == "__main__":
         outB = model(torch.cat([xB, yB], dim=1))
         uB = outB[:, 0:1]
         vB = outB[:, 1:2]
+
+        rightIdx = torch.where(x[:, 0] == 0.26)
+        xR, yR = x[rightIdx], y[rightIdx]
+        outR = model(torch.cat([xR, yR], dim=1))
+        pR = outR[:, 2:3]
+        dataRight = yData[rightIdx]
+        pRight = dataRight[:, 2:3]
 
         u_x = torch.autograd.grad(
             u, x,
@@ -361,31 +355,17 @@ if __name__ == "__main__":
             create_graph=True,
         )[0]
 
-        # rho_h_u_x = torch.autograd.grad(
-        #     rho_h_u, x,
-        #     grad_outputs=torch.ones_like(rho_h_u),
-        #     create_graph=True,
-        #     retain_graph=True
-        # )[0]
-
-        # rho_h_v_y = torch.autograd.grad(
-        #     rho_h_v, y,
-        #     grad_outputs=torch.ones_like(rho_h_v),
-        #     create_graph=True,
-        #     retain_graph=True
-        # )[0]
-
         rho = 1.184
-        # Navier-Stokes
-        # mom_loss_x = u * u_x + v * u_y + (p_x - model.nu * (u_xx + u_yy)) / rho
-        # mom_loss_y = u * v_x + v * v_y + (p_y - model.nu * (v_xx + v_yy)) / rho
         # Euler
-        mom_loss_x = u * u_x + v * u_y + p_x / rho
-        mom_loss_y = u * v_x + v * v_y + p_y / rho
+        # Navier-Stokes
+        mom_loss_x = u * u_x + v * u_y + (p_x - model.nu * (u_xx + u_yy)) / rho
+        mom_loss_y = u * v_x + v * v_y + (p_y - model.nu * (v_xx + v_yy)) / rho
+        # Euler
+        # mom_loss_x = u * u_x + v * u_y + p_x / rho
+        # mom_loss_y = u * v_x + v * v_y + p_y / rho
         mass_loss = u_x + v_y
-        # energy_loss = rho_h_u_x + rho_h_v_y
 
-        loss_f = mom_loss_x + mom_loss_y + mass_loss  # + energy_loss
+        loss_f = mom_loss_x + mom_loss_y + mass_loss
         model.residual = loss_f
 
         loss_left = (uL - model.uLeft) + (vL - model.vLeft)
@@ -394,54 +374,30 @@ if __name__ == "__main__":
 
         loss_noslip = (uT - model.noSlip) + (vT - model.noSlip)
 
-        # xpL = model.xLeft[:, 0:1]
-        # ypL = model.xLeft[:, 1:2]
-        # outpL = model(torch.cat([xpL, ypL], dim=1))
-        # rhoL = outpL[:, 2:3]
-        # eL = outpL[:, 3:4]
-        # pL = rhoL * (gamma - 1) * eL
-
-        # xpR = model.xRight[:, 0:1]
-        # ypR = model.xRight[:, 1:2]
-        # outpR = model(torch.cat([xpR, ypR], dim=1))
-        # rhoR = outpR[:, 2:3]
-        # eR = outpR[:, 3:4]
-        # pR = rhoR * (gamma - 1) * eR
-
-        # # loss_p = (pL - model.pLeft) + (pR - model.pRight)
-        # loss_p = pR - model.pRight
-        loss_p = p - yData[:, 2:3]
+        loss_p = pR - pRight
 
         loss_residual = loss_f**2
-        loss_velocity = loss_left**2 + loss_surface**2 # + loss_noslip**2
+        loss_velocity = loss_left**2 + loss_surface**2
         loss_noslip = loss_noslip**2
         loss_pressure = loss_p**2
 
-        # loss_data = (torch.cat([out[:, :2], p], dim=1) - yData)**2
+        # delta = 0.1
+        # grads_f = weight_grads(model, torch.sum(loss_residual))
+        # grads_vel = weight_grads(model, torch.sum(loss_velocity) + torch.sum(loss_noslip))
+        # grads_pressure = weight_grads(model, torch.sum(loss_pressure))
 
-        # model.count += 1
-        # if model.count == 210:
-        #     model.count = 0
-        #     print("debug")
+        # alpha_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_vel)).item()
+        # beta_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_pressure)).item()
 
-        # out = torch.cat([out[:, :2], p], dim=1)
-        # return torch.sum(loss_data), out
-        # return torch.sum(loss_residual) + torch.sum(loss_data), out
-        delta = 0.1
-        grads_f = weight_grads(model, torch.sum(loss_residual))
-        grads_vel = weight_grads(model, torch.sum(loss_velocity) + torch.sum(loss_noslip))
-        grads_pressure = weight_grads(model, torch.sum(loss_pressure))
-
-        alpha_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_vel)).item()
-        beta_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_pressure)).item()
-
-        alpha = (1 - delta) * model.alpha + delta * alpha_new
-        beta = (1 - delta) * model.beta + delta * beta_new
-        model.alpha = alpha_new
-        model.beta = beta_new
-        # return torch.sum(loss_residual) + alpha * (torch.sum(loss_velocity) +  torch.sum(loss_noslip)), out
-        return torch.sum(loss_residual) + alpha * (torch.sum(loss_velocity) +  torch.sum(loss_noslip)) \
-            + beta * torch.sum(loss_pressure), out
+        # alpha = (1 - delta) * model.alpha + delta * alpha_new
+        # beta = (1 - delta) * model.beta + delta * beta_new
+        # model.alpha = alpha_new
+        # model.beta = beta_new
+        # return torch.sum(loss_residual) + alpha * (torch.sum(loss_velocity) + torch.sum(loss_noslip)) \
+        #     + beta * torch.sum(loss_pressure), out
+        return torch.sum(loss_residual) + (torch.sum(loss_velocity) + torch.sum(loss_noslip)) \
+            + torch.sum(loss_pressure), out
+        # return 0.05 * torch.sum(loss_residual) + (torch.sum(loss_velocity) + torch.sum(loss_noslip)), out
 
     validation_metrics = {
         "m_mse_name": "Total MSE",
@@ -489,7 +445,7 @@ if __name__ == "__main__":
         test_dataset,
         optimizerAdam,
         physics_informed=True,
-        epochs=options["epochs"],
+        epochs=options["epochs"][0],
         batch_size=options["batch_size"],
         device=options["device"],
         **validation_metrics
@@ -503,7 +459,7 @@ if __name__ == "__main__":
         test_dataset,
         optimizerLFBGS,
         physics_informed=True,
-        epochs=10,  # options["epochs"],
+        epochs=options["epochs"][1],
         batch_size=len(train_dataset),
         initial_epoch=last_epoch + 1,
         device=options["device"],
@@ -520,17 +476,7 @@ if __name__ == "__main__":
         test_x = data[["Points:0", "Points:1"]].values
         test_x = torch.FloatTensor(test_x)
         sample_y = data[["U:0", "U:1", "p"]].values
-        out = pinnModel(test_x.to(options["device"]))  #[ :, :3]
-        # u = out[:, 0:1]
-        # v = out[:, 1:2] 
-        # rho = out[:, 2:3]
-        # e = out[:, 3:4]
-        # Cp = 1.005
-        # Cv = 0.718
-        # gamma = Cp / Cv
-        # E = e - rho * (u**2 + v**2) / 2
-        # p = rho * (gamma - 1) * E
-        # out = torch.cat([out[:, :2], p], dim=1)
+        out = pinnModel(test_x.to(options["device"]))
         sample_x = test_x.cpu().detach().numpy()
         out_y = out.cpu().detach().numpy()
         visualizeScatter(sample_y, out_y, sample_x, savePath="./runPINN2D.png")

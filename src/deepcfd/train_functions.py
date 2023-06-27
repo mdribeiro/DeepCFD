@@ -2,6 +2,7 @@ import copy
 import torch
 from .pytorchtools import EarlyStopping
 from deepcfd.functions import ModifiedTensorDataset
+import torch.nn.utils as utils
 
 
 def generate_metrics_list(metrics_def):
@@ -9,6 +10,9 @@ def generate_metrics_list(metrics_def):
     for name in metrics_def.keys():
         list[name] = []
     return list
+
+# Define the maximum gradient norm for clipping
+max_grad_norm = 1.0
 
 
 def epoch(scope, loader, on_batch=None, training=False):
@@ -37,6 +41,8 @@ def epoch(scope, loader, on_batch=None, training=False):
             loss, output = loss_func(model, tensors)
             optimizer.zero_grad()
             loss.backward()
+            # gradient clipping
+            utils.clip_grad_norm_(model.parameters(), max_grad_norm)
             optimizer.step()
         elif training and isinstance(optimizer, torch.optim.LBFGS):
             def closure():
@@ -45,6 +51,8 @@ def epoch(scope, loader, on_batch=None, training=False):
                 model.output = output
                 optimizer.zero_grad()
                 loss.backward()
+                # gradient clipping
+                utils.clip_grad_norm_(model.parameters(), max_grad_norm)
                 return loss
             optimizer.step(closure)
             loss = model.loss
