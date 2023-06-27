@@ -43,16 +43,29 @@ def Burgers(x, t, Re):
 class ModifiedTensorDataset(torch.utils.data.Dataset):
 
     def __init__(self, *tensors):
-        self.tensors_x = tensors[0]
-        self.tensors_y = tensors[1]
         self.tensors = tensors
-        self.lengths = tuple([tensor.size(0) for tensor in self.tensors_x])
+        self.lengths = tuple(tensor.size(0) for tensor in tensors[0])
 
     def __getitem__(self, index):
-        return tuple([tensor[index % length] for tensor, length in zip(self.tensors, self.lengths)])
+        return tuple(tensor[index % length] for tensor, length in zip(self.tensors, self.lengths))
 
     def __len__(self):
         return max(self.lengths)
+
+
+# class ModifiedTensorDataset(torch.utils.data.Dataset):
+
+#     def __init__(self, *tensors):
+#         self.tensors_x = tensors[0]
+#         self.tensors_y = tensors[1]
+#         self.tensors = tensors
+#         self.lengths = tuple([tensor.size(0) for tensor in self.tensors_x])
+
+#     def __getitem__(self, index):
+#         return tuple([tensor[index % length] for tensor, length in zip(self.tensors, self.lengths)])
+
+#     def __len__(self):
+#         return max(self.lengths)
 
 
 def split_tensors(*tensors, ratio):
