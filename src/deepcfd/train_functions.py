@@ -3,7 +3,7 @@ import torch
 from .pytorchtools import EarlyStopping
 from deepcfd.functions import ModifiedTensorDataset
 import torch.nn.utils as utils
-
+import pandas as pd
 
 def generate_metrics_list(metrics_def):
     list = {}
@@ -11,8 +11,14 @@ def generate_metrics_list(metrics_def):
         list[name] = []
     return list
 
+
 # Define the maximum gradient norm for clipping
 max_grad_norm = 1.0
+
+data = pd.read_csv('/home/dias_ma/Github/cylinderFlow2DCellData.csv')
+test_x = data[["x", "y"]].values
+test_x = torch.FloatTensor(test_x)
+sample_y = data[["U:0", "U:1", "p"]].values
 
 
 def epoch(scope, loader, on_batch=None, training=False):
@@ -42,7 +48,7 @@ def epoch(scope, loader, on_batch=None, training=False):
             optimizer.zero_grad()
             loss.backward()
             # gradient clipping
-            utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+            # utils.clip_grad_norm_(model.parameters(), max_grad_norm)
             optimizer.step()
         elif training and isinstance(optimizer, torch.optim.LBFGS):
             def closure():
@@ -52,7 +58,7 @@ def epoch(scope, loader, on_batch=None, training=False):
                 optimizer.zero_grad()
                 loss.backward()
                 # gradient clipping
-                utils.clip_grad_norm_(model.parameters(), max_grad_norm)
+                # utils.clip_grad_norm_(model.parameters(), max_grad_norm)
                 return loss
             optimizer.step(closure)
             loss = model.loss
@@ -73,12 +79,26 @@ def epoch(scope, loader, on_batch=None, training=False):
     for name in metrics_def.keys():
         scope["list"] = scope["metrics_list"][name]
         metrics[name] = metrics_def[name]["on_epoch"](scope)
+    # scheduler step
+    if scope["scheduler"] is not None:
+        scheduler = scope["scheduler"]
+        scheduler.step()
+    for param_group in optimizer.param_groups:
+        current_lr = param_group['lr']
+    if training:
+        print(f"\nCurrent lr = {current_lr}\n")
+    # if scope["epoch"] % 10 == 0:
+    #     out = model(test_x.to("cuda"))
+    #     sample_x = test_x.cpu().detach().numpy()
+    #     out_y = out.cpu().detach().numpy()
+    #     visualize2DEuler(sample_y, out_y, sample_x, savePath="train_pinn_2d", showPlot=False)
+        
     return total_loss, metrics
 
 
 def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_function=print, eval_model=None,
           on_train_batch=None, on_val_batch=None, on_train_epoch=None, on_val_epoch=None, after_epoch=None,
-          initial_epoch=1):
+          initial_epoch=1, shuffle_train=True):
 
     early_stopping = EarlyStopping(patience, verbose=True)
 
@@ -94,7 +114,7 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
     scope["best_model"] = None
     scope["last_epoch"] = initial_epoch + epochs - 1
 
-    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size, shuffle=shuffle_train)
     if isinstance(train_dataset, ModifiedTensorDataset):
         train_loader = train_loader.dataset
     val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
@@ -162,7 +182,8 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
 
 def train_model(model, loss_func, train_dataset, val_dataset, optimizer, process_batch=None, eval_model=None,
                 on_train_batch=None, on_val_batch=None, on_train_epoch=None, on_val_epoch=None, after_epoch=None,
-                epochs=100, batch_size=256, patience=10, device=0, physics_informed=False, initial_epoch=1, **kwargs):
+                epochs=100, batch_size=256, patience=10, device=0, physics_informed=False,
+                initial_epoch=1, shuffle_train=True, scheduler=None, **kwargs):
     model = model.to(device)
     scope = {}
     scope["model"] = model
@@ -175,6 +196,7 @@ def train_model(model, loss_func, train_dataset, val_dataset, optimizer, process
     scope["batch_size"] = batch_size
     scope["device"] = device
     scope["physics_informed"] = physics_informed
+    scope["scheduler"] = scheduler
     metrics_def = {}
     names = []
     for key in kwargs.keys():
@@ -194,4 +216,4 @@ def train_model(model, loss_func, train_dataset, val_dataset, optimizer, process
     scope["metrics_def"] = metrics_def
     return train(scope, train_dataset, val_dataset, eval_model=eval_model, on_train_batch=on_train_batch,
            on_val_batch=on_val_batch, on_train_epoch=on_train_epoch, on_val_epoch=on_val_epoch, after_epoch=after_epoch,
-           batch_size=batch_size, patience=patience, initial_epoch=initial_epoch)
+           batch_size=batch_size, patience=patience, initial_epoch=initial_epoch, shuffle_train=shuffle_train)

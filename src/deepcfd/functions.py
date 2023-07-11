@@ -4,6 +4,8 @@ import numpy as np
 from matplotlib import pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pyDOE import lhs
+from scipy.interpolate import griddata
+from matplotlib.patches import Circle
 
 
 def CreateCollocationPoints(xBounds, tBounds, numSamples):
@@ -319,3 +321,69 @@ def visualize1DBurgers(time_label, test_x, test_re, options, model, analyticial_
 
     plt.savefig(savePath)
     plt.show()
+
+
+def visualize2DEuler(sample_y, out_y, sample_x, savePath="./run.png", showPlot=True):
+    # Define the grid
+    grid_x, grid_y = np.meshgrid(np.linspace(-1, 1, 100), np.linspace(-1, 1, 100))
+
+    # Create a subplot with 3 rows and 3 columns
+    fig, axs = plt.subplots(3, 3, figsize=(15, 12))
+
+    # Iterate over each column of the results arrays
+    for i in range(3):
+        # Retrieve vmin and vmax from the first column
+        v_min, v_max = np.min(sample_y[:, i]), np.max(sample_y[:, i])
+        cbarticks = np.arange(v_min, v_max*1.01,0.01)
+        # Interpolate the sample_y onto the grid for the first column
+        grid_sample_y = griddata(sample_x, sample_y[:, i], (grid_x, grid_y), method='linear')
+        # Plot the interpolated sample_y using contourf and create a colorbar
+        cf = axs[i, 0].contourf(grid_x, grid_y, grid_sample_y, cbarticks, cmap='jet', vmin=v_min, vmax=v_max)
+        cb = fig.colorbar(cf, ax=axs[i, 0])
+
+        # Interpolate the out_y onto the grid for the second column
+        grid_out_y = griddata(sample_x, out_y[:, i], (grid_x, grid_y), method='linear')
+        # Plot the interpolated out_y using contourf with the same vmin and vmax as the first column
+        cf2 = axs[i, 1].contourf(grid_x, grid_y, grid_out_y, cbarticks, cmap='jet', vmin=v_min, vmax=v_max)
+        cb2 = fig.colorbar(cf2, ax=axs[i, 1])
+
+        # Calculate the error between sample_y and out_y for the third column
+        error = np.abs(sample_y[:, i] - out_y[:, i])
+        # Interpolate the error onto the grid for the third column
+        grid_error = griddata(sample_x, error, (grid_x, grid_y), method='linear')
+        # Plot the interpolated error using contourf and create a colorbar
+        cf3 = axs[i, 2].contourf(grid_x, grid_y, grid_error, levels=20, cmap='jet')
+        cb3 = fig.colorbar(cf3, ax=axs[i, 2])
+
+        # Add a white circle in the middle of each column subplot
+        circle1 = Circle((0, 0), 0.202845, facecolor='white', edgecolor='black')
+        axs[i, 0].add_patch(circle1)
+
+        circle2 = Circle((0, 0), 0.202845, facecolor='white', edgecolor='black')
+        axs[i, 1].add_patch(circle2)
+
+        circle3 = Circle((0, 0), 0.202845, facecolor='white', edgecolor='black')
+        axs[i, 2].add_patch(circle3)
+
+        var_names = ["ux", "uy", "p"]
+        # Set the x and y labels and titles for each subplot
+        axs[i, 0].set_xlabel('X')
+        axs[i, 0].set_ylabel('Y')
+        axs[i, 0].set_title(f'Truth {var_names[i]}')
+        axs[i, 1].set_xlabel('X')
+        axs[i, 1].set_ylabel('Y')
+        axs[i, 1].set_title(f'PINN {var_names[i]}')
+        axs[i, 2].set_xlabel('X')
+        axs[i, 2].set_ylabel('Y')
+        axs[i, 2].set_title(f'Absolute Error {var_names[i]}')
+
+    # Adjust the spacing between subplots
+    plt.tight_layout()
+
+    # Save the figure if savePath is provided
+    if savePath:
+        plt.savefig(savePath)
+
+    # Show the plot
+    if showPlot:
+        plt.show()

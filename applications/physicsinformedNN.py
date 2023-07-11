@@ -67,7 +67,7 @@ def parseOpts(argv):
             visualize = True
 
     options = {
-        'device': device,
+        'device': device,   # cpu or cuda (if you have a gpu)
         'net': net,
         'output': output,
         'learning_rate': learning_rate,
