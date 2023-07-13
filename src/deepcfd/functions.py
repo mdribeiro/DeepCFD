@@ -6,22 +6,32 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pyDOE import lhs
 
 
-def CreateCollocationPoints(xBounds, tBounds, numSamples):
+def CreateCollocationPoints(xBounds, tBounds, numSamples, ReBounds=None, numRe=None):
     """
     Create collocation points for PINNs
     """
     x = xBounds[0] + (xBounds[1] - xBounds[0]) * lhs(1, samples=numSamples)
     t = tBounds[0] + (tBounds[1] - tBounds[0]) * lhs(1, samples=numSamples)
-    pointsInside = np.concatenate((x, t), axis=1)
+    if (ReBounds==None):
+        pointsInside = np.concatenate((x, t), axis=1)
+    else:
+        Re = np.expand_dims(np.random.choice(np.linspace(ReBounds[0],ReBounds[1],numRe), size=numSamples), axis=1)
+        pointsInside = np.concatenate((x, t, Re), axis=1)
 
     x = np.asarray([-1.0 if number == 0 else 1.0 for number in np.random.randint(0, 2, numSamples)]
                    ).reshape((numSamples, 1))
     t = tBounds[0] + (tBounds[1] - tBounds[0]) * lhs(1, samples=numSamples)
-    pointsBoundary = np.concatenate((x, t), axis=1)
+    if (ReBounds==None):
+        pointsBoundary = np.concatenate((x, t), axis=1)
+    else:
+        pointsBoundary = np.concatenate((x, t, Re), axis=1)
 
     x = xBounds[0] + (xBounds[1] - xBounds[0]) * lhs(1, samples=numSamples)
     t = np.zeros_like(x)
-    pointsInitial = np.concatenate((x, t), axis=1)
+    if (ReBounds==None):
+        pointsInitial = np.concatenate((x, t), axis=1)
+    else:
+        pointsInitial = np.concatenate((x, t, Re), axis=1)
 
     return pointsInside, pointsBoundary, pointsInitial
 
@@ -76,7 +86,7 @@ def initialize(model, gain=1, std=0.02):
                 nn.init.normal_(module.bias, 0, std)
 
 
-def visualize(sample_y, out_y, error, s, savePath="./run.png"):
+def visualize(sample_y, out_y, error, s, savePath="../tmp/run.png"):
     minu = np.min(sample_y[s, 0, :, :])
     maxu = np.max(sample_y[s, 0, :, :])
 
@@ -143,7 +153,7 @@ def visualize(sample_y, out_y, error, s, savePath="./run.png"):
     plt.show()
 
 
-def visualizeScatter(sample_y, out_y, sample_x, savePath="./run.png"):
+def visualizeScatter(sample_y, out_y, sample_x, savePath="../tmp/run.png"):
     error = out_y - sample_y
 
     minu = np.min(sample_y[:, 0])
@@ -210,11 +220,11 @@ def visualizeScatter(sample_y, out_y, sample_x, savePath="./run.png"):
 
 
 def visualize1DBurgers(time_label, test_x, test_re, options, model, analyticial_function,
-                       xBounds, tBounds, savePath="./pinn1DBurgers.png"):
+                       xBounds, tBounds, test_Renum, savePath="../tmp/pinn1DBurgers.png"):
     outs, targets = [], []
     for t in time_label:
         test_t = torch.ones_like(test_x) * t
-        test_points = torch.cat((test_x, test_t), dim=1).to(options["device"])
+        test_points = torch.cat((test_x, test_t, test_re), dim=1).to(options["device"])
         outs.append(model(test_points).cpu().detach().numpy())
         targets.append(analyticial_function(
             test_points[:, 0], test_points[:, 1], test_re[:, 0]).cpu().detach().numpy())
@@ -230,13 +240,14 @@ def visualize1DBurgers(time_label, test_x, test_re, options, model, analyticial_
 
     pointsX = xx.T.reshape((xPoints * tPoints * 1, 1))
     pointsT = tt.T.reshape((xPoints * tPoints * 1, 1))
+    pointsRe = np.ones_like(pointsX) * test_Renum
 
-    test_points = np.concatenate((pointsX, pointsT), axis=1)
+    test_points = np.concatenate((pointsX, pointsT, pointsRe), axis=1)
 
     out = model(torch.tensor(test_points).float().to(options["device"])).cpu().detach().numpy()
     target = analyticial_function(torch.tensor(test_points[:, 0]),
                                   torch.tensor(test_points[:, 1]),
-                                  torch.tensor(1 / model.nu)).reshape((xPoints * tPoints, 1)
+                                  torch.tensor(test_Renum)).reshape((xPoints * tPoints, 1)
                                   ).cpu().detach().numpy()
 
     fig, axs = plt.subplots(3, 2, figsize=(12, 9), gridspec_kw={'width_ratios': [0.65, 0.25], "wspace": 0.25, "hspace": 0.6, "top": 0.95, "bottom": 0.1, "left": 0.1, "right": 0.95})
