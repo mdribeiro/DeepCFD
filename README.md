@@ -50,6 +50,12 @@ python3 -m deepcfd \
 
 ## Dataset and Code
 
+# PINN for 2D incompressible Navier-Stokes
+
+The data for the steady-state incompressible flow around a cylinder used for the 2D PINN appplication can be downloaded here: https://zenodo.org/record/8159504/files/cylinderFlow2DCellData.csv?download=1
+
+# Data-driven applications
+
 A toy dataset and the code for this project can be downloaded using the following link: https://zenodo.org/record/3666056/files/DeepCFD.zip?download=1
 For the MLP dataset (X has x and y coordinates as input), the link is the following: https://zenodo.org/record/8042938/files/DeepCFD_MLPData.zip?download=1
 

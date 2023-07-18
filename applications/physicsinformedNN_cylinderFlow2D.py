@@ -53,7 +53,7 @@ if __name__ == "__main__":
         'show_points': True,
     }
 
-    data = pd.read_csv('/home/dias_ma/Github/cylinderFlow2DCellData_mod.csv')
+    data = pd.read_csv('/home/dias_ma/Github/cylinderFlow2DCellData.csv')
     cylinderFlow2D = data[["x", "y", "U:0", "U:1", "p", "patchIDs"]].values
 
     points_f, output_f = cylinderFlow2D[:, 0:2], cylinderFlow2D[:, 2:5]
