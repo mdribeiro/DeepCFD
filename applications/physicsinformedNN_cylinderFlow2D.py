@@ -73,9 +73,6 @@ if __name__ == "__main__":
     points_bottom = points_f[np.where(patch_ids[:, 0] == 4)]
     output_bottom = output_f[np.where(patch_ids[:, 0] == 4)]
 
-    points_bottom = points_f[np.where(patch_ids[:, 0] == 4)]
-    output_bottom = output_f[np.where(patch_ids[:, 0] == 4)]
-
     points_surface = points_f[np.where(patch_ids[:, 0] == 5)]
     output_surface = output_f[np.where(patch_ids[:, 0] == 5)]
 
