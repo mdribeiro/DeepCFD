@@ -16,11 +16,6 @@ def generate_metrics_list(metrics_def):
 # Define the maximum gradient norm for clipping
 max_grad_norm = 1.0
 
-data = pd.read_csv('/home/dias_ma/Github/cylinderFlow2DCellData.csv')
-test_x = data[["x", "y"]].values
-test_x = torch.FloatTensor(test_x)
-sample_y = data[["U:0", "U:1", "p"]].values
-
 
 def epoch(scope, loader, on_batch=None, training=False):
     model = scope["model"]
