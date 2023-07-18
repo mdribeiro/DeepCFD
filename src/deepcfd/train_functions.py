@@ -5,6 +5,7 @@ from deepcfd.functions import ModifiedTensorDataset
 import torch.nn.utils as utils
 import pandas as pd
 
+
 def generate_metrics_list(metrics_def):
     list = {}
     for name in metrics_def.keys():
@@ -87,12 +88,7 @@ def epoch(scope, loader, on_batch=None, training=False):
         current_lr = param_group['lr']
     if training:
         print(f"\nCurrent lr = {current_lr}\n")
-    # if scope["epoch"] % 10 == 0:
-    #     out = model(test_x.to("cuda"))
-    #     sample_x = test_x.cpu().detach().numpy()
-    #     out_y = out.cpu().detach().numpy()
-    #     visualize2DEuler(sample_y, out_y, sample_x, savePath="train_pinn_2d", showPlot=False)
-        
+
     return total_loss, metrics
 
 

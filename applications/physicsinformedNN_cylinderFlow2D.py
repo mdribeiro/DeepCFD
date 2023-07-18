@@ -13,83 +13,39 @@ from deepcfd.functions import *
 import torch.optim as optim
 from torch.utils.data import TensorDataset
 from torch.autograd import Variable
+from matplotlib.path import Path
+import scipy.interpolate
 from pyDOE import lhs
 from sklearn.metrics import r2_score
 from torch.nn.utils import parameters_to_vector
 from deepcfd.models.ExperimentalModels import FeedForwardNN
-from datetime import datetime
 net = FeedForwardNN
-
-
-# Get the filename of the script
-script_filename = sys.argv[0]
 
 
 def calc_r2(target, output):
     value = r2_score(target, output)
-    value = np.where(value < 0.0, 0., (np.where(value == np.inf, 0., value)))
+    value = np.where(value < 0.0, 0., value)
+    value = np.where(value == np.inf, 0., value)
     return value
-
-
-def circle(r=0.02, xc=0, yc=0, n_samples=100):
-    theta = np.linspace(0, 2*np.pi, n_samples)
-    x = xc + r*np.cos(theta).reshape((n_samples, 1))
-    y = yc + r*np.sin(theta).reshape((n_samples, 1))
-    circ = np.concatenate((x, y), axis=1)
-    return circ
-
-
-class AdaptiveTanhPerLayer(torch.nn.Module):
-    def __init__(self, device):
-        super().__init__()
-        self.a = torch.nn.parameter.Parameter(torch.empty((1,)), requires_grad=True).to(device)
-        torch.nn.init.normal_(self.a, mean=1.0, std=0.01)
-        self.n = 1 / self.a.clone().detach().requires_grad_(False)
-
-    def forward(self, x):
-        return self.n * self.a * torch.tanh(x)
-
-
-class AdaptiveTanhPerNeuron(torch.nn.Module):
-    def __init__(self, numberNeurons):
-        super().__init__()
-        self.a = torch.nn.parameter.Parameter(torch.empty(numberNeurons), requires_grad=True)
-        torch.nn.init.normal_(self.a, mean=1.0, std=0.001)
-        self.n = 1 / self.a.clone().detach().requires_grad_(False)
-
-    def forward(self, x):
-        return self.n * self.a * torch.tanh(x)
 
 
 if __name__ == "__main__":
 
     options = {
-        'log_name': "pinn2D_dev",
-        'log_message': "Trying Hybrid (data-driven for p) regular Adam with u, v, p NS formulation.",
-        'script_name': script_filename,
         'device': "cuda",  # "cpu",
         'output': "mymodel.pt",
         'net': net,
-        'learning_rate': 1e-3,
-        # 'epochs': [40000, 1000],
-        'epochs': [1000, 100],
-        # 'batch_size': 8192,  #32,   # 1024
+        'learning_rate': 1e-4,
+         # 'epochs': [40000, 1000],
+         'epochs': [1000, 100],
+         # 'epochs': [100, 10],
         'batch_size': 1024,
         'patience': 500,
-        # 'neurons_list': [80, 80, 80, 80],
         'neurons_list': [40, 40, 40, 40, 40, 40, 40, 40],
-         # 'activation': nn.ReLU(),
-         'activation': nn.Tanh(),
-         #'activation': nn.ELU(),  
-         # 'activation': nn.GELU(),
-         # nn.GELU
-        # 'activation': AdaptiveTanhPerLayer("cuda"),
-        # 'physics_driven': True,
-        #'physics_driven': False,
-        'physics_driven': True,
+        'activation': nn.Tanh(),
         'shuffle_train': True,
         'visualize': True,
-        'fixed_w': True,
+        'fixed_w': False,
         'update_freq': 50,
         'init_w': [2.0, 2.0, 2.0],
         'max_w': 20.0,
@@ -105,49 +61,57 @@ if __name__ == "__main__":
 
     n_samples = len(points_f)
 
-    # points_surface = points_f[np.where(patch_ids[:, 0] == 5.0)]
-    center = np.array([0.0, 0.0])
-    radius = 0.202845
-    theta = np.linspace(0, 2 * np.pi, n_samples)
-    circle_x = center[0] + radius * np.cos(theta)
-    circle_y = center[1] + radius * np.sin(theta)
-    points_surface = np.column_stack((circle_x, circle_y))
-    output_surface = output_f[np.where(patch_ids[:, 0] == 5.0)]
+    points_inlet = points_f[np.where(patch_ids[:, 0] == 1)]
+    output_inlet = output_f[np.where(patch_ids[:, 0] == 1)]
 
-    # points_inlet = points_f[np.where(patch_ids[:, 0] == 1.0)]
-    xmin, xmax = -1.0, 1.0
-    ymin, ymax = -1.0, 1.0
-    x_inlet = np.ones((n_samples, 1)) * xmin
-    y_inlet = ymin + (ymax - ymin) * lhs(1, samples=n_samples)
-    points_inlet = np.concatenate((x_inlet, y_inlet), axis=1)
-    output_inlet = output_f[np.where(patch_ids[:, 0] == 1.0)]
+    points_outlet = points_f[np.where(patch_ids[:, 0] == 2)]
+    output_outlet = output_f[np.where(patch_ids[:, 0] == 2)]
 
-    # points_outlet = points_f[np.where(patch_ids[:, 0] == 2.0)]
-    x_outlet = np.ones((n_samples,1)) * xmax
-    y_outlet = ymin + (ymax - ymin) * lhs(1, samples=n_samples)
-    points_outlet = np.concatenate((x_outlet, y_outlet), axis=1)
-    output_outlet = output_f[np.where(patch_ids[:, 0] == 2.0)]
+    points_top = points_f[np.where(patch_ids[:, 0] == 3)]
+    output_top = output_f[np.where(patch_ids[:, 0] == 3)]
 
-    # points_top = points_f[np.where(patch_ids[:, 0] == 3.0)]
-    x_top = xmin + (xmax - xmin) * lhs(1, samples=n_samples)
-    y_top = np.ones((n_samples,1)) * ymax
-    points_top = np.concatenate((x_top, y_top), axis=1)
-    output_top = output_f[np.where(patch_ids[:, 0] == 3.0)]
+    points_bottom = points_f[np.where(patch_ids[:, 0] == 4)]
+    output_bottom = output_f[np.where(patch_ids[:, 0] == 4)]
 
-    # points_bottom = points_f[np.where(patch_ids[:, 0] == 4.0)]
-    x_bottom = xmin + (xmax - xmin) * lhs(1, samples=n_samples)
-    y_bottom = np.ones((n_samples,1)) * ymin
-    points_bottom = np.concatenate((x_bottom, y_bottom), axis=1)
-    output_bottom = output_f[np.where(patch_ids[:, 0] == 4.0)]
+    points_bottom = points_f[np.where(patch_ids[:, 0] == 4)]
+    output_bottom = output_f[np.where(patch_ids[:, 0] == 4)]
 
+    points_surface = points_f[np.where(patch_ids[:, 0] == 5)]
+    output_surface = output_f[np.where(patch_ids[:, 0] == 5)]
+
+    points_f = points_f[np.where(patch_ids[:, 0] == 0)]
+    output_f = output_f[np.where(patch_ids[:, 0] == 0)]
+
+    # Mesh internal points
     idx_shuffle = np.linspace(0, len(points_f) - 1, len(points_f), dtype=int)
     np.random.shuffle(idx_shuffle)
     np.random.shuffle(idx_shuffle)
     np.random.shuffle(idx_shuffle)
     points_f, output_f = points_f[idx_shuffle], output_f[idx_shuffle]
 
+    # Residual training points
+    xmin, xmax = -0.98, 0.98
+    ymin, ymax = -0.98, 0.98
+    n_samples = 25000
+
+    samples = lhs(2, samples=n_samples)
+    x_coord = xmin + (xmax - xmin) * samples[:, 0]
+    y_coord = ymin + (ymax - ymin) * samples[:, 1]
+    coordinates = np.column_stack((x_coord, y_coord))
+
+    center = np.array([0.0, 0.0])
+    radius = 0.202845 + 0.001
+    theta = np.linspace(0, 2 * np.pi, n_samples)
+    circle_x = center[0] + radius * np.cos(theta)
+    circle_y = center[1] + radius * np.sin(theta)
+    points_cylinder = np.column_stack((circle_x, circle_y))
+
+    cylinder_path = Path(points_cylinder)
+    mask = ~cylinder_path.contains_points(coordinates)
+    coordinates = coordinates[mask]
+
     if options["show_points"]:
-        plt.scatter(points_f[:, 0], points_f[:,1]), 
+        plt.scatter(coordinates[:, 0], coordinates[:,1]),
         plt.scatter(points_surface[:, 0], points_surface[:, 1], color="red"),  
         plt.scatter(points_inlet[:, 0], points_inlet[:, 1], color="magenta")
         plt.scatter(points_outlet[:, 0], points_outlet[:, 1], color="yellow")
@@ -156,21 +120,12 @@ if __name__ == "__main__":
         plt.show()
 
     device = options["device"]
-
-    # neurons_list = [10, 10, 10, 10, 10]
-    # neurons_list = [256, 256, 256]
-    # neurons_list = [256, 256]
-    # neurons_list = [120, 120, 120, 120]
-    # neurons_list = [80, 80, 80, 80]
     neurons_list = options["neurons_list"]
-    # neurons_list = [30, 30, 30, 30, 30]
     model = options["net"](
         2,
         3,
         neurons_list=neurons_list,
         activation=options["activation"],
-        # activation=nn.ReLU() if not options["physics_driven"] else nn.Tanh(),
-        # activation=AdaptiveTanhPerLayer(device),   #nn.ELU(),
         normalize_weights=False,
         normalize_batch=False
     )
@@ -179,8 +134,11 @@ if __name__ == "__main__":
     if dirname and not os.path.exists(dirname):
         os.makedirs(dirname, exist_ok=True)
 
-    x = torch.FloatTensor(points_f)
-    y = torch.FloatTensor(output_f)
+    # These are the points used for training! NOT the same as the reference solution!
+    x = torch.FloatTensor(coordinates)
+    # Need to interpolate on mesh grid points so we can calcualte validation metrics during training!
+    y = scipy.interpolate.griddata(points_f, output_f, (coordinates[:, 0], coordinates[:, 1]), method='nearest')
+    y = torch.FloatTensor(y)
 
     points_surface = torch.FloatTensor(points_surface)
     output_surface = torch.FloatTensor(output_surface)
@@ -247,10 +205,6 @@ if __name__ == "__main__":
 
     # Define optimizers
     # optimizerAdam = torch.optim.AdamW(
-    #     model.parameters(),
-    #     lr=options["learning_rate"],
-    #     weight_decay=0.0
-    # )
     optimizerAdam = torch.optim.Adam(
         model.parameters(),
         lr=options["learning_rate"],
@@ -261,7 +215,7 @@ if __name__ == "__main__":
         lr=1e-2
     )
 
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=[15000, 20000, 25000], gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=[15000, 20000, 25000], gamma=0.25)
 
     config = {}
     train_loss_curve = []
@@ -289,10 +243,45 @@ if __name__ == "__main__":
                     grads.extend([g.view(-1) for g in [weight_grads, bias_grads] if g is not None])
         return torch.cat(grads).detach()
 
+    def loss_weights(model, loss_residual, loss_left, loss_right, loss_top, loss_bottom, loss_surface):
+        delta = 0.1
+        grads_f = weight_grads(model, loss_residual)
+        grads_left = weight_grads(model, loss_left)
+        grads_right = weight_grads(model, loss_right)
+        grads_noslip = weight_grads(model, (loss_top + loss_bottom + loss_surface) / 3)
+
+        # alpha_new = torch.max(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_left)).item()
+        # beta_new = torch.max(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_right)).item()
+        # gamma_new = torch.max(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_noslip)).item()
+
+        alpha_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_left))# .item(
+        beta_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_right))# .item()
+        gamma_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_noslip))# .item()
+
+        max_value = torch.tensor(options["max_w"])
+        min_value = torch.tensor(options["min_w"])
+        alpha_new = torch.minimum(alpha_new, max_value)
+        alpha_new = torch.maximum(alpha_new, min_value).item()
+
+        beta_new = torch.minimum(beta_new, max_value)
+        beta_new = torch.maximum(beta_new, min_value).item()
+
+        gamma_new = torch.minimum(gamma_new, max_value)
+        gamma_new = torch.maximum(gamma_new, min_value).item()
+
+        alpha = (1 - delta) * model.alpha + delta * alpha_new
+        beta = (1 - delta) * model.beta + delta * beta_new
+        gamma = (1 - delta) * model.gamma + delta * gamma_new
+        model.alpha = alpha_new
+        model.beta = beta_new
+        model.gamma = gamma_new
+        model.count = 0
+
+        return alpha, beta, gamma
+
     def loss_func(model, batch):
-        xInside, yData = batch
+        xInside, _ = batch
         xInside.requires_grad = True
-        yData.requires_grad = True
 
         x = xInside[:, 0:1]
         y = xInside[:, 1:2]
@@ -401,22 +390,19 @@ if __name__ == "__main__":
         )[0]
 
         # Navier-Stokes
-        mom_loss_x = u * u_x + v * u_y + (p_x /model.rho - model.nu * (u_xx + u_yy))
-        mom_loss_y = u * v_x + v * v_y + (p_y /model.rho - model.nu * (v_xx + v_yy))
-        # Euler
-        # mom_loss_x = u * u_x + v * u_y + p_x / rho
-        # mom_loss_y = u * v_x + v * v_y + p_y / rho
+        mom_loss_x = u * u_x + v * u_y + p_x / model.rho - model.nu * (u_xx + u_yy)
+        mom_loss_y = u * v_x + v * v_y + p_y / model.rho - model.nu * (v_xx + v_yy)
         mass_loss = u_x + v_y
 
         loss_f = mom_loss_x + mom_loss_y + mass_loss
         model.residual = loss_f
 
-        loss_left = (uL - 1.0) + (vL - 0.0)
-        loss_right = pR - 0.0
+        loss_left = outL - model.output_inlet
+        loss_right = outR - model.output_outlet
 
-        loss_top = (uT - 1.0) + (vT - 0.0)
-        loss_bottom = (uB - 1.0) + (vB - 0.0)
-        loss_surface = (uS - 0.0) + (vS - 0.0)
+        loss_top = outT - model.output_top
+        loss_bottom = outB - model.output_bottom
+        loss_surface = outS - model.output_surface
 
         loss_residual = torch.sum(loss_f**2)
         loss_left = torch.sum(loss_left**2)
@@ -425,60 +411,17 @@ if __name__ == "__main__":
         loss_bottom = torch.sum(loss_bottom**2)
         loss_surface = torch.sum(loss_surface**2)
 
-        # loss_pressure = torch.sum((out[:, 2:3] - yData[:, 2:3])**2)
-        # return loss_residual + loss_left + loss_right \
-        #         + (loss_top + loss_bottom + loss_surface) + loss_pressure, out
-
-        if not options["physics_driven"]:
-            loss_data = torch.sum((out - yData)**2)
-            return loss_data, out
+        model.count += 1
+        if options["fixed_w"]:
+            alpha, beta, gamma = model.alpha, model.beta, model.gamma
         else:
-            model.count += 1
             if model.count == options["update_freq"]:
-                if not options["fixed_w"]:
-                    delta = 0.1
-                    grads_f = weight_grads(model, loss_residual)
-                    grads_left = weight_grads(model, loss_left)
-                    grads_right = weight_grads(model, loss_right)
-                    grads_noslip = weight_grads(model, (loss_top + loss_bottom + loss_surface) / 3)
-
-                    # alpha_new = torch.max(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_left)).item()
-                    # beta_new = torch.max(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_right)).item()
-                    # gamma_new = torch.max(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_noslip)).item()
-
-                    alpha_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_left))# .item(
-                    beta_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_right))# .item()
-                    gamma_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_noslip))# .item()
-
-                    max_value = torch.tensor(options["max_w"])
-                    min_value = torch.tensor(options["min_w"])
-                    alpha_new = torch.minimum(alpha_new, max_value)
-                    alpha_new = torch.maximum(alpha_new, min_value).item()
-
-                    beta_new = torch.minimum(beta_new, max_value)
-                    beta_new = torch.maximum(beta_new, min_value).item()
-
-                    gamma_new = torch.minimum(gamma_new, max_value)
-                    gamma_new = torch.maximum(gamma_new, min_value).item()
-
-                    alpha = (1 - delta) * model.alpha + delta * alpha_new
-                    beta = (1 - delta) * model.beta + delta * beta_new
-                    gamma = (1 - delta) * model.gamma + delta * gamma_new
-                    model.alpha = alpha_new
-                    model.beta = beta_new
-                    model.gamma = gamma_new
-                    model.count = 0
-                else:  # if fixed weights
-                    alpha = model.alpha
-                    beta = model.beta
-                    gamma = model.gamma
+                alpha, beta, gamma = loss_weights(model, loss_residual, loss_left, loss_right, loss_top, loss_bottom, loss_surface)
             else:
-                alpha = model.alpha
-                beta = model.beta
-                gamma = model.gamma
+                alpha, beta, gamma = model.alpha, model.beta, model.gamma
 
-            return loss_residual + alpha * loss_left + beta * loss_right \
-                        + gamma * (loss_top + loss_bottom + loss_surface) + torch.sum((p - yData[:, 2:3])**2), out
+        return loss_residual + alpha * loss_left + beta * loss_right \
+            + gamma * (loss_top + loss_bottom + loss_surface), out
 
     validation_metrics = {
         "m_mse_name": "Total MSE",
@@ -549,47 +492,18 @@ if __name__ == "__main__":
         shuffle_train=True,
         **validation_metrics
     )
-
     state_dict = pinnModel.state_dict()
     state_dict["neurons_list"] = neurons_list
     state_dict["architecture"] = options["net"]
 
     torch.save(state_dict, options["output"])
 
-    print(pinnModel.alpha)
-    print(pinnModel.beta)
-    print(pinnModel.gamma)
-    with open(f'{options["log_name"]}.txt', 'a') as f:
-        # Redirect the standard output to the file
-        sys.stdout = f
-        current_datetime = datetime.now()
-        # Print the log_message string to the file
-        print("###################################")
-        print('Current Date and Time:', current_datetime)
-        print("\n")
-        print(options['log_message'])
-        options.pop('log_message')
-        print("\n")
-        print(options['script_name'])
-        options.pop('script_name')
-        print("\n")
-        print(options)
-        print("\n")
-        print("alpha, beta, gamma:\n")
-        print(pinnModel.alpha)
-        print(pinnModel.beta)
-        print(pinnModel.gamma)
-        print("###################################")
-        print("\n\n")
-
-        # Reset the standard output to the console
-        sys.stdout = sys.__stdout__
-
     if (options["visualize"]):
+        # Evaluate on the mesh cell points (NOT USED IN TRAINING)
         test_x = data[["x", "y"]].values
         test_x = torch.FloatTensor(test_x)
         sample_y = data[["U:0", "U:1", "p"]].values
         out = pinnModel(test_x.to(options["device"]))
         sample_x = test_x.cpu().detach().numpy()
         out_y = out.cpu().detach().numpy()
-        visualize2DEuler(sample_y, out_y, sample_x, savePath="./runPINN2D.png")
+        visualize2DNavierStokes(sample_y, out_y, sample_x, savePath="./runPINN2D.png")

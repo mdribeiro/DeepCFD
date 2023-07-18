@@ -55,21 +55,6 @@ class ModifiedTensorDataset(torch.utils.data.Dataset):
         return max(self.lengths)
 
 
-# class ModifiedTensorDataset(torch.utils.data.Dataset):
-
-#     def __init__(self, *tensors):
-#         self.tensors_x = tensors[0]
-#         self.tensors_y = tensors[1]
-#         self.tensors = tensors
-#         self.lengths = tuple([tensor.size(0) for tensor in self.tensors_x])
-
-#     def __getitem__(self, index):
-#         return tuple([tensor[index % length] for tensor, length in zip(self.tensors, self.lengths)])
-
-#     def __len__(self):
-#         return max(self.lengths)
-
-
 def split_tensors(*tensors, ratio):
     assert len(tensors) > 0
     split1, split2 = [], []
@@ -323,7 +308,7 @@ def visualize1DBurgers(time_label, test_x, test_re, options, model, analyticial_
     plt.show()
 
 
-def visualize2DEuler(sample_y, out_y, sample_x, savePath="./run.png", showPlot=True):
+def visualize2DNavierStokes(sample_y, out_y, sample_x, savePath="./run.png", showPlot=True):
     # Define the grid
     grid_x, grid_y = np.meshgrid(np.linspace(-1, 1, 100), np.linspace(-1, 1, 100))
 

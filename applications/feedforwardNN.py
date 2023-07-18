@@ -182,7 +182,7 @@ if __name__ == "__main__":
         return torch.sum(loss), output
 
     # Training model
-    DeepCFD, train_metrics, train_loss, test_metrics, test_loss = train_model(
+    DeepCFD, train_metrics, train_loss, test_metrics, test_loss, _ = train_model(
         model.double(),
         loss_func,
         train_dataset,
