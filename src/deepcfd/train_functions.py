@@ -3,7 +3,6 @@ import torch
 from .pytorchtools import EarlyStopping
 from deepcfd.functions import ModifiedTensorDataset
 import torch.nn.utils as utils
-import pandas as pd
 
 
 def generate_metrics_list(metrics_def):
