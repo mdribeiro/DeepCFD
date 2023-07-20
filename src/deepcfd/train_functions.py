@@ -75,7 +75,7 @@ def epoch(scope, loader, on_batch=None, training=False):
         scope["list"] = scope["metrics_list"][name]
         metrics[name] = metrics_def[name]["on_epoch"](scope)
     # scheduler step
-    if scope["scheduler"] is not None:
+    if scope["scheduler"] is not None and training:
         scheduler = scope["scheduler"]
         scheduler.step()
     for param_group in optimizer.param_groups:
