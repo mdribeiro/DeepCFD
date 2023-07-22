@@ -219,9 +219,9 @@ if __name__ == "__main__":
     )
 
     # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=[15000, 20000, 25000], gamma=0.25)
-    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=[15000, 25000, 35000], gamma=0.1)
-    m1, m2, m3 = int(0.3 * options["epochs"][0]), int(0.6 * options["epochs"][0]), int(0.9 * options["epochs"][0])
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=[m1, m2, m3], gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=[15000, 25000, 35000], gamma=0.1)
+    # m1, m2, m3 = int(0.3 * options["epochs"][0]), int(0.6 * options["epochs"][0]), int(0.9 * options["epochs"][0])
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=[m1, m2, m3], gamma=0.1)
 
     config = {}
     train_loss_curve = []
