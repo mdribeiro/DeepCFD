@@ -78,9 +78,8 @@ def epoch(scope, loader, on_batch=None, training=False):
     if scope["scheduler"] is not None and training:
         scheduler = scope["scheduler"]
         scheduler.step()
-    for param_group in optimizer.param_groups:
-        current_lr = param_group['lr']
-    if training:
+        for param_group in optimizer.param_groups:
+            current_lr = param_group['lr']
         print(f"\nCurrent lr = {current_lr}\n")
 
     return total_loss, metrics
@@ -122,6 +121,9 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
         print_function("\tTrain Loss = " + str(train_loss), flush=True)
         for name in metrics_def.keys():
             print_function("\tTrain " + metrics_def[name]["name"] + " = " + str(train_metrics[name]), flush=True)
+            if scope["writer"] is not None:
+                writer = scope["writer"]
+                writer.add_scalar("Train " + metrics_def[name]["name"], train_metrics[name], epoch_id)
         if on_train_epoch is not None:
             on_train_epoch(scope)
         del scope["dataset"]
@@ -137,6 +139,9 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
         print_function("\tValidation Loss = " + str(val_loss), flush=True)
         for name in metrics_def.keys():
             print_function("\tValidation " + metrics_def[name]["name"] + " = " + str(val_metrics[name]), flush=True)
+            if scope["writer"] is not None:
+                writer = scope["writer"]
+                writer.add_scalar("Validation " + metrics_def[name]["name"], val_metrics[name], epoch_id)
         if on_val_epoch is not None:
             on_val_epoch(scope)
         del scope["dataset"]
@@ -173,7 +178,7 @@ def train(scope, train_dataset, val_dataset, patience=10, batch_size=256, print_
 def train_model(model, loss_func, train_dataset, val_dataset, optimizer, process_batch=None, eval_model=None,
                 on_train_batch=None, on_val_batch=None, on_train_epoch=None, on_val_epoch=None, after_epoch=None,
                 epochs=100, batch_size=256, patience=10, device=0, physics_informed=False,
-                initial_epoch=1, shuffle_train=True, scheduler=None, **kwargs):
+                initial_epoch=1, shuffle_train=True, scheduler=None, writer=None, **kwargs):
     model = model.to(device)
     scope = {}
     scope["model"] = model
@@ -187,6 +192,7 @@ def train_model(model, loss_func, train_dataset, val_dataset, optimizer, process
     scope["device"] = device
     scope["physics_informed"] = physics_informed
     scope["scheduler"] = scheduler
+    scope["writer"] = writer
     metrics_def = {}
     names = []
     for key in kwargs.keys():
