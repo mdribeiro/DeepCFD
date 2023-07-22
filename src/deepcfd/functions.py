@@ -319,7 +319,7 @@ def visualize2DNavierStokes(sample_y, out_y, sample_x, savePath="./run.png", sho
     for i in range(3):
         # Retrieve vmin and vmax from the first column
         v_min, v_max = np.min(sample_y[:, i]), np.max(sample_y[:, i])
-        cbarticks = np.arange(v_min, v_max*1.01,0.01)
+        cbarticks = np.arange(v_min * 2.0, v_max * 2.0,0.01)
         # Interpolate the sample_y onto the grid for the first column
         grid_sample_y = griddata(sample_x, sample_y[:, i], (grid_x, grid_y), method='linear')
         # Plot the interpolated sample_y using contourf and create a colorbar
