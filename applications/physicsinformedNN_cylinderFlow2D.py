@@ -18,11 +18,16 @@ import scipy.interpolate
 from pyDOE import lhs
 from sklearn.metrics import r2_score
 from torch.nn.utils import parameters_to_vector
+import torch.utils.tensorboard as tb
 from deepcfd.models.ExperimentalModels import FeedForwardNN
 net = FeedForwardNN
 
 
-def calc_r2(target, output):
+def calc_r2(data, model, device):
+    with torch.no_grad():
+        output = model.to("cpu")(data.tensors[0].to("cpu")).cpu().detach().numpy()
+    model.to(device)
+    target = data.tensors[1].cpu().detach().numpy()
     value = r2_score(target, output)
     value = np.where(value < 0.0, 0., value)
     value = np.where(value == np.inf, 0., value)
@@ -32,11 +37,12 @@ def calc_r2(target, output):
 if __name__ == "__main__":
 
     options = {
-        'device': "cuda",  # "cpu",
+        'device': "cpu",  # "cuda",
         'output': "mymodel.pt",
         'net': net,
-        'learning_rate': 1e-4,
+        'learning_rate': 1e-3,
          # 'epochs': [40000, 1000],
+         # 'epochs': [10000, 1000],
          'epochs': [1000, 100],
          # 'epochs': [100, 10],
         'batch_size': 1024,
@@ -48,7 +54,7 @@ if __name__ == "__main__":
         'fixed_w': False,
         'update_freq': 50,
         'init_w': [2.0, 2.0, 2.0],
-        'max_w': 20.0,
+        'max_w': 100.0,
         'min_w': 1.0,
         'show_points': True,
     }
@@ -109,7 +115,7 @@ if __name__ == "__main__":
 
     if options["show_points"]:
         plt.scatter(coordinates[:, 0], coordinates[:,1]),
-        plt.scatter(points_surface[:, 0], points_surface[:, 1], color="red"),  
+        plt.scatter(points_surface[:, 0], points_surface[:, 1], color="red"),
         plt.scatter(points_inlet[:, 0], points_inlet[:, 1], color="magenta")
         plt.scatter(points_outlet[:, 0], points_outlet[:, 1], color="yellow")
         plt.scatter(points_top[:, 0], points_top[:, 1], color="black")
@@ -201,8 +207,8 @@ if __name__ == "__main__":
     torch.manual_seed(0)
 
     # Define optimizers
-    # optimizerAdam = torch.optim.AdamW(
-    optimizerAdam = torch.optim.Adam(
+    optimizerAdam = torch.optim.AdamW(
+    # optimizerAdam = torch.optim.Adam(
         model.parameters(),
         lr=options["learning_rate"],
         weight_decay=0.0
@@ -212,7 +218,10 @@ if __name__ == "__main__":
         lr=1e-2
     )
 
-    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=[15000, 20000, 25000], gamma=0.25)
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=[15000, 20000, 25000], gamma=0.25)
+    # scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=[15000, 25000, 35000], gamma=0.1)
+    m1, m2, m3 = int(0.3 * options["epochs"][0]), int(0.6 * options["epochs"][0]), int(0.9 * options["epochs"][0])
+    scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizerAdam, milestones=[m1, m2, m3], gamma=0.1)
 
     config = {}
     train_loss_curve = []
@@ -427,11 +436,9 @@ if __name__ == "__main__":
         "m_mse_on_epoch": lambda scope:
             sum(scope["list"]) / len(scope["dataset"]),
         "m_r2_name": "Total R2 Score",
-        "m_r2_on_batch": lambda scope:
-            float(calc_r2(scope["batch"][1].cpu().detach().numpy(),
-                          scope["output"].cpu().detach().numpy())),
+        "m_r2_on_batch": lambda scope: float(0.0),
         "m_r2_on_epoch": lambda scope:
-            sum(scope["list"]) / len(scope["dataset"]),
+            float(calc_r2(scope["dataset"], scope["model"], scope["device"])),
         "m_f_name": "Total Residual",
         "m_f_on_batch": lambda scope:
             float(torch.sum((model.residual) ** 2)),
@@ -458,6 +465,7 @@ if __name__ == "__main__":
 
     }
 
+    writerAdam = tb.SummaryWriter(comment="Adam_training")
     # # Training model with Adam
     pinnAdam, train_metrics, train_loss, test_metrics, test_loss, last_epoch = train_model(
         model,
@@ -471,9 +479,17 @@ if __name__ == "__main__":
         device=options["device"],
         shuffle_train=options["shuffle_train"],
         scheduler=scheduler,
+        writer=writerAdam,
         **validation_metrics
     )
 
+    state_dict = pinnAdam.state_dict()
+    state_dict["neurons_list"] = neurons_list
+    state_dict["architecture"] = options["net"]
+
+    torch.save(state_dict, options["output"])
+
+    writerFullbatch = tb.SummaryWriter(comment="Fullbatch_training")
     # Training model with L-FBGS
     pinnModel, train_metrics, train_loss, test_metrics, test_loss, last_epoch = train_model(
         pinnAdam,
@@ -487,8 +503,11 @@ if __name__ == "__main__":
         initial_epoch=last_epoch + 1,
         device=options["device"],
         shuffle_train=True,
+        writer=writerFullbatch,
         **validation_metrics
     )
+    writerAdam.close()
+    writerFullbatch.close()
     state_dict = pinnModel.state_dict()
     state_dict["neurons_list"] = neurons_list
     state_dict["architecture"] = options["net"]
@@ -503,4 +522,4 @@ if __name__ == "__main__":
         out = pinnModel(test_x.to(options["device"]))
         sample_x = test_x.cpu().detach().numpy()
         out_y = out.cpu().detach().numpy()
-        visualize2DNavierStokes(sample_y, out_y, sample_x, savePath="./runPINN2D.png")
+        visualize2DNavierStokes(sample_y, out_y, sample_x, savePath="./runPINN2D_LongRun.png")
