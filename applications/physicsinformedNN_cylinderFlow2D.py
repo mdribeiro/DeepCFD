@@ -37,7 +37,7 @@ def calc_r2(data, model, device):
 if __name__ == "__main__":
 
     options = {
-        'device': "cpu",  # "cuda",
+        'device': "cuda",  # "cpu",
         'output': "mymodel.pt",
         'net': net,
         'learning_rate': 1e-3,
