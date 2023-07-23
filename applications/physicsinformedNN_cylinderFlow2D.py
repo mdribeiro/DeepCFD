@@ -522,4 +522,4 @@ if __name__ == "__main__":
         out = pinnModel(test_x.to(options["device"]))
         sample_x = test_x.cpu().detach().numpy()
         out_y = out.cpu().detach().numpy()
-        visualize2DNavierStokes(sample_y, out_y, sample_x, savePath="./runPINN2D_LongRun.png")
+        visualize2DNavierStokes(sample_y, out_y, sample_x, savePath="./runPINN2D.png")
