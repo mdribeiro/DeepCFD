@@ -23,6 +23,7 @@ def epoch(scope, loader, on_batch=None, training=False):
     metrics_def = scope["metrics_def"]
     scope = copy.copy(scope)
     scope["loader"] = loader
+    scope["training"] = training
 
     metrics_list = generate_metrics_list(metrics_def)
     total_loss = 0
