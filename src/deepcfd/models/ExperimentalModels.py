@@ -1,6 +1,8 @@
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.utils import weight_norm
+import torch.nn.init as init
+import torch
 
 
 class FeedForwardNN(nn.Module):
@@ -45,6 +47,13 @@ class FeedForwardNN(nn.Module):
         self.layers.append(nn.Linear(neurons_list[-1], numPointsPerOutput))
 
         self.activation = activation
+
+        # initialize layers:
+        for layer in self.layers:
+            # init.xavier_uniform_(layer.weight)
+            # init.xavier_uniform_(layer.weight, gain=nn.init.calculate_gain('relu'))
+            init.xavier_normal_(layer.weight)
+            init.constant_(layer.bias, 0.0)
 
     def forward(self, x):
         for layer in self.layers[:-1]:

@@ -52,7 +52,7 @@ def parseOpts(argv):
                 print("Unkown device " + str(arg) + ", only 'cpu', 'cuda'"
                       "'cuda:index', or comma-separated list of 'cuda:index'"
                       "are supported")
-                exit(0)
+                sys.exit(0)
         elif opt in ("-l", "--learning-rate"):
             learning_rate = float(arg)
         elif opt in ("-e", "--epochs"):
@@ -67,7 +67,7 @@ def parseOpts(argv):
             visualize = True
 
     options = {
-        'device': device,
+        'device': device,   # cpu or cuda (if you have a gpu)
         'net': net,
         'output': output,
         'learning_rate': learning_rate,
@@ -270,5 +270,5 @@ if __name__ == "__main__":
                    pinnModel.nu).to(options["device"])
         visualize1DBurgers(time_label, test_x, test_re, options, pinnModel, BurgersExact, xBounds, tBounds)
 
-# %run applications/physicsinformedNN.py --device "gpu" --epochs 75 --batch-size 32 --visualize True
+# %run applications/physicsinformedNN.py --device "cuda" --epochs 75 --batch-size 32 --visualize True
 # %run applications/physicsinformedNN.py --device "cpu" --epochs 75 --batch-size 32 --visualize True
