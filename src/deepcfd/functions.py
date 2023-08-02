@@ -6,7 +6,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pyDOE import lhs
 
 
-def CreateCollocationPoints(xBounds, tBounds, numSamples, ReBounds=None, numRe=None):
+def CreateCollocationPoints(xBounds, tBounds, numSamples, numRe=None, ReBounds=None):
     """
     Create collocation points for PINNs
     """
@@ -15,7 +15,9 @@ def CreateCollocationPoints(xBounds, tBounds, numSamples, ReBounds=None, numRe=N
     if (ReBounds==None):
         pointsInside = np.concatenate((x, t), axis=1)
     else:
-        Re = np.expand_dims(np.random.choice(np.linspace(ReBounds[0],ReBounds[1],numRe), size=numSamples), axis=1)
+        # Re = np.expand_dims(np.random.choice(np.linspace(ReBounds[0],ReBounds[1],numRe), size=numSamples), axis=1)
+        # Re = np.ones_like(x)*ReBounds
+        Re = ReBounds[0] + (ReBounds[1] - ReBounds[0]) * lhs(1, samples=numRe)
         pointsInside = np.concatenate((x, t, Re), axis=1)
 
     x = np.asarray([-1.0 if number == 0 else 1.0 for number in np.random.randint(0, 2, numSamples)]
@@ -71,8 +73,16 @@ def split_tensors(*tensors, ratio):
     count = len(tensors[0])
     for tensor in tensors:
         assert len(tensor) == count
-        split1.append(tensor[:int(len(tensor) * ratio)])
-        split2.append(tensor[int(len(tensor) * ratio):])
+        dataset_size = len(tensor)
+        indices = list(range(dataset_size))
+        split = int(np.floor(ratio * dataset_size))
+        np.random.seed(0)
+        np.random.shuffle(indices)
+        train_indices, test_indices = indices[:split], indices[split:]
+        split1.append(tensor[train_indices])
+        split2.append(tensor[test_indices])
+        # split1.append(tensor[:int(len(tensor) * ratio)])
+        # split2.append(tensor[int(len(tensor) * ratio):])
     if len(tensors) == 1:
         split1, split2 = split1[0], split2[0]
     return split1, split2
@@ -220,11 +230,11 @@ def visualizeScatter(sample_y, out_y, sample_x, savePath="../tmp/run.png"):
 
 
 def visualize1DBurgers(time_label, test_x, test_re, options, model, analyticial_function,
-                       xBounds, tBounds, test_Renum, savePath="../tmp/pinn1DBurgers.png"):
+                       xBounds, tBounds, test_Renum, savePath="../tmp/10_Re_100_samplePoints_pinn1DBurgers.png"):
     outs, targets = [], []
     for t in time_label:
         test_t = torch.ones_like(test_x) * t
-        test_points = torch.cat((test_x, test_t, test_re), dim=1).to(options["device"])
+        test_points = torch.cat((test_x, test_t, test_re/1000.), dim=1).to(options["device"])
         outs.append(model(test_points).cpu().detach().numpy())
         targets.append(analyticial_function(
             test_points[:, 0], test_points[:, 1], test_re[:, 0]).cpu().detach().numpy())
@@ -242,7 +252,7 @@ def visualize1DBurgers(time_label, test_x, test_re, options, model, analyticial_
     pointsT = tt.T.reshape((xPoints * tPoints * 1, 1))
     pointsRe = np.ones_like(pointsX) * test_Renum
 
-    test_points = np.concatenate((pointsX, pointsT, pointsRe), axis=1)
+    test_points = np.concatenate((pointsX, pointsT, pointsRe/1000.), axis=1)
 
     out = model(torch.tensor(test_points).float().to(options["device"])).cpu().detach().numpy()
     target = analyticial_function(torch.tensor(test_points[:, 0]),
@@ -297,20 +307,20 @@ def visualize1DBurgers(time_label, test_x, test_re, options, model, analyticial_
 
     x_line = np.linspace(-1, 1, 100)
 
-    axs[0, 1].plot(x_line, data[3]['x'], '-k', label="truth")
-    axs[0, 1].plot(x_line, data[3]['y'], '--r', label="pinn")
+    axs[0, 1].plot(x_line, data[3]['x'], '-k', label="pinn")
+    axs[0, 1].plot(x_line, data[3]['y'], '--r', label="truth")
     axs[0, 1].set_title("t = 0.25s")
     axs[0, 1].set_xlabel("x")
     axs[0, 1].legend()
 
-    axs[1, 1].plot(x_line, data[4]['x'], '-k', label="truth")
-    axs[1, 1].plot(x_line, data[4]['y'], '--r', label="pinn")
+    axs[1, 1].plot(x_line, data[4]['x'], '-k', label="pinn")
+    axs[1, 1].plot(x_line, data[4]['y'], '--r', label="truth")
     axs[1, 1].set_title("t = 0.50s")
     axs[1, 1].set_xlabel("x")
     axs[1, 1].legend()
 
-    axs[2, 1].plot(x_line, data[5]['x'], '-k', label="truth")
-    axs[2, 1].plot(x_line, data[5]['y'], '--r', label="pinn")
+    axs[2, 1].plot(x_line, data[5]['x'], '-k', label="pinn")
+    axs[2, 1].plot(x_line, data[5]['y'], '--r', label="truth")
     axs[2, 1].set_title("t = 0.75s")
     axs[2, 1].set_xlabel("x")
     axs[2, 1].legend()

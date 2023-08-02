@@ -19,7 +19,7 @@ net = FeedForwardNN
 
 def parseOpts(argv):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    output = "mymodel.pt"
+    output = "Re_100_1000_wd_rs_model.pt"
     learning_rate = 0.001
     epochs = 500
     batch_size = 32
@@ -84,14 +84,14 @@ if __name__ == "__main__":
     options = parseOpts(sys.argv[1:])
 
     numSamples = 1000
-    numRe = 10
+    numRe = 1000
     xBounds = (-1., 1.)
     tBounds = (0., 1.)
-    ReBounds = (100, 1000)
-    scaleRe = 1000
-    x, xBdr, xInitial = CreateCollocationPoints(xBounds, tBounds, numSamples, ReBounds, numRe)
+    ReBounds = (100., 1000.) #np.pi / 0.01 #decrease Re space, single number to check- don't use scaling
+    scaleRe = 1000.
+    x, xBdr, xInitial = CreateCollocationPoints(xBounds, tBounds, numSamples, numRe, ReBounds)
 
-    neurons_list = [10, 10, 10, 10, 10]
+    neurons_list = [10, 10, 10, 10, 10, 10]
     model = options["net"](
         3,
         1,
@@ -128,7 +128,7 @@ if __name__ == "__main__":
     optimizerAdam = torch.optim.AdamW(
         model.parameters(),
         lr=options["learning_rate"],
-        weight_decay=0.005
+        weight_decay=0.005 #remove, set = 0.0
     )
     optimizerLFBGS = torch.optim.LBFGS(
         model.parameters(),
@@ -159,13 +159,14 @@ if __name__ == "__main__":
         den = 1 + torch.sqrt(td/t0) * torch.exp(Re * (x**2/(4*td)))
 
         u_xt = torch.nan_to_num(num/den)
+        # u_xt = num/den
 
         return u_xt
     
     def scaleReNum(Re):
         return Re/scaleRe
 
-    def loss_func(model, batch, ):
+    def loss_func(model, batch): #debug line by line
         xInside, _, xBdr, xInitial = batch
         xInside.requires_grad = True
         xBdr.requires_grad = True
@@ -213,6 +214,7 @@ if __name__ == "__main__":
         loss_Initial = yInitial - outInitial
 
         loss = loss_f**2 + loss_Bdr**2 + loss_Initial**2
+        # loss = torch.mean(loss_f**2) + torch.mean(loss_Bdr**2) + torch.mean(loss_Initial**2)
 
         return torch.sum(loss), u
 
@@ -272,11 +274,11 @@ if __name__ == "__main__":
     torch.save(state_dict, options["output"])
 
     if (options["visualize"]):
-        test_Renum = 100
+        test_Renum = 400
         time_label = [0.25, 0.5, 0.75]
         test_x = torch.linspace(-1, 1, 100).reshape((100, 1))
         test_re = (torch.ones_like(test_x) * test_Renum).to(options["device"])
-        visualize1DBurgers(time_label, test_x, test_re, options, pinnModel, BurgersExact, xBounds, tBounds, test_Renum)
+        visualize1DBurgers(time_label, test_x, test_re, options, pinnModel, BurgersExact, xBounds, tBounds, test_Renum, savePath="../tmp/100_1000_Re400_1000_samplePoints_wd_rs_pinn1DBurgers.png")
 
 # %run applications/physicsinformedNN.py --device "gpu" --epochs 75 --batch-size 32 --visualize True
 # %run applications/physicsinformedNN.py --device "cpu" --epochs 75 --batch-size 32 --visualize True
