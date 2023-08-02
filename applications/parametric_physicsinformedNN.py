@@ -19,7 +19,7 @@ net = FeedForwardNN
 
 def parseOpts(argv):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    output = "mymodel.pt"
+    output = "Re_100_1000_wd_rs_model.pt"
     learning_rate = 0.001
     epochs = 500
     batch_size = 32
