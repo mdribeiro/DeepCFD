@@ -345,40 +345,50 @@ if __name__ == "__main__":
         v = out[:, 1:2]
         p = out[:, 2:3]
 
-        # xS = model.points_surface[:, 0:1]
-        # yS = model.points_surface[:, 1:2]
-        # outS = model(torch.cat([xS, yS], dim=1))
-        # uS = outS[:, 0:1]
-        # vS = outS[:, 1:2]
-        # pS = outS[:, 2:3]
+        xS = model.points_surface[:, 0:1]
+        yS = model.points_surface[:, 1:2]
+        graphS = create_graph(xS, yS)
+        edgeS_index_batch = graphS.edge_index.to(device)
+        outS = model(torch.cat([xS, yS], dim=1), edgeS_index_batch.T)
+        uS = outS[:, 0:1]
+        vS = outS[:, 1:2]
+        pS = outS[:, 2:3]
 
-        # xL = model.points_inlet[:, 0:1]
-        # yL = model.points_inlet[:, 1:2]
-        # outL = model(torch.cat([xL, yL], dim=1))
-        # uL = outL[:, 0:1]
-        # vL = outL[:, 1:2]
-        # pL = outL[:, 2:3]
+        xL = model.points_inlet[:, 0:1]
+        yL = model.points_inlet[:, 1:2]
+        graphL = create_graph(xL, yL)
+        edgeL_index_batch = graphL.edge_index.to(device)
+        outL = model(torch.cat([xL, yL], dim=1), edgeL_index_batch.T)
+        uL = outL[:, 0:1]
+        vL = outL[:, 1:2]
+        pL = outL[:, 2:3]
 
-        # xR = model.points_outlet[:, 0:1]
-        # yR = model.points_outlet[:, 1:2]
-        # outR = model(torch.cat([xR, yR], dim=1))
-        # uR = outR[:, 0:1]
-        # vR = outR[:, 1:2]
-        # pR = outR[:, 2:3]
+        xR = model.points_outlet[:, 0:1]
+        yR = model.points_outlet[:, 1:2]
+        graphR = create_graph(xR, yR)
+        edgeR_index_batch = graphR.edge_index.to(device)
+        outR = model(torch.cat([xR, yR], dim=1), edgeR_index_batch.T)
+        uR = outR[:, 0:1]
+        vR = outR[:, 1:2]
+        pR = outR[:, 2:3]
 
-        # xT = model.points_top[:, 0:1]
-        # yT = model.points_top[:, 1:2]
-        # outT = model(torch.cat([xT, yT], dim=1))
-        # uT = outT[:, 0:1]
-        # vT = outT[:, 1:2]
-        # pT = outT[:, 2:3]
+        xT = model.points_top[:, 0:1]
+        yT = model.points_top[:, 1:2]
+        graphT = create_graph(xT, yT)
+        edgeT_index_batch = graphT.edge_index.to(device)
+        outT = model(torch.cat([xT, yT], dim=1), edgeT_index_batch.T)
+        uT = outT[:, 0:1]
+        vT = outT[:, 1:2]
+        pT = outT[:, 2:3]
 
-        # xB = model.points_bottom[:, 0:1]
-        # yB = model.points_bottom[:, 1:2]
-        # outB = model(torch.cat([xB, yB], dim=1))
-        # uB = outB[:, 0:1]
-        # vB = outB[:, 1:2]
-        # pB = outB[:, 2:3]
+        xB = model.points_bottom[:, 0:1]
+        yB = model.points_bottom[:, 1:2]
+        graphB = create_graph(xB, yB)
+        edgeB_index_batch = graphB.edge_index.to(device)
+        outB = model(torch.cat([xB, yB], dim=1), edgeB_index_batch.T)
+        uB = outB[:, 0:1]
+        vB = outB[:, 1:2]
+        pB = outB[:, 2:3]
 
         u_x = torch.autograd.grad(
             u, x,
@@ -452,19 +462,19 @@ if __name__ == "__main__":
         loss_f = mom_loss_x + mom_loss_y + mass_loss
         model.residual = loss_f
 
-        # loss_left = outL - model.output_inlet
-        # loss_right = outR - model.output_outlet
+        loss_left = outL - model.output_inlet
+        loss_right = outR - model.output_outlet
 
-        # loss_top = outT - model.output_top
-        # loss_bottom = outB - model.output_bottom
-        # loss_surface = outS - model.output_surface
+        loss_top = outT - model.output_top
+        loss_bottom = outB - model.output_bottom
+        loss_surface = outS - model.output_surface
 
         loss_residual = torch.sum(loss_f**2)
-        # loss_left = torch.sum(loss_left**2)
-        # loss_right = torch.sum(loss_right**2)
-        # loss_top = torch.sum(loss_top**2)
-        # loss_bottom = torch.sum(loss_bottom**2)
-        # loss_surface = torch.sum(loss_surface**2)
+        loss_left = torch.sum(loss_left**2)
+        loss_right = torch.sum(loss_right**2)
+        loss_top = torch.sum(loss_top**2)
+        loss_bottom = torch.sum(loss_bottom**2)
+        loss_surface = torch.sum(loss_surface**2)
 
         # model.count += 1
         # if options["fixed_w"]:
@@ -478,7 +488,7 @@ if __name__ == "__main__":
         # return loss_residual + alpha * loss_left + beta * loss_right \
         #     + gamma * (loss_top + loss_bottom + loss_surface), out
         
-        return loss_residual, out
+        return loss_residual + loss_left + loss_right + (loss_top + loss_bottom + loss_surface), out
 
 
     validation_metrics = {
