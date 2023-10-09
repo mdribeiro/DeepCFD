@@ -22,6 +22,7 @@ import torch.utils.tensorboard as tb
 from deepcfd.models.ExperimentalModels import FeedForwardNN
 net = FeedForwardNN
 
+torch.set_num_threads(16)
 
 def calc_r2(data, model, device):
     with torch.no_grad():
@@ -38,28 +39,30 @@ if __name__ == "__main__":
 
     options = {
         'device': "cuda",  # "cpu",
-        'output': "mymodel.pt",
+        # 'output': "2D_10000_1000_epochs_model.pt",
+        # 'output': "10000_1000_PINN2D_residual_attention.pt",
+        'output': "trial.pt",
         'net': net,
         'learning_rate': 1e-3,
-         # 'epochs': [40000, 1000],
-         # 'epochs': [10000, 1000],
-         'epochs': [1000, 100],
-         # 'epochs': [100, 10],
+        'epochs': [3, 2], #40000, 1000
+        # 'epochs': [10, 5],
+        # 'epochs': [1000, 100],
+        # 'epochs': [100, 10],
         'batch_size': 1024,
         'patience': 500,
-        'neurons_list': [40, 40, 40, 40, 40, 40, 40, 40],
+        'neurons_list': [40, 40, 40, 40, 40, 40, 40, 40], #20 - 60 per layer
         'activation': nn.Tanh(),
         'shuffle_train': True,
         'visualize': True,
         'fixed_w': False,
-        'update_freq': 50,
+        'update_freq': 50, #25
         'init_w': [2.0, 2.0, 2.0],
         'max_w': 100.0,
         'min_w': 1.0,
         'show_points': True,
     }
 
-    data = pd.read_csv('/home/dias_ma/Github/cylinderFlow2DCellData.csv')
+    data = pd.read_csv('/home/iagkilam/DeepCFD/applications/cylinderFlow2DCellData.csv')
     cylinderFlow2D = data[["x", "y", "U:0", "U:1", "p", "patchIDs"]].values
 
     points_f, output_f = cylinderFlow2D[:, 0:2], cylinderFlow2D[:, 2:5]
@@ -461,11 +464,41 @@ if __name__ == "__main__":
             float(torch.sum((scope["output"][:, 2] -
                              scope["batch"][1][:, 2]) ** 2)),
         "m_p_on_epoch": lambda scope:
+            sum(scope["list"]) / len(scope["dataset"]),
+        "m_surface_name": "Surface loss",
+        "m_surface_on_batch": lambda scope:
+            float(torch.sum(scope["model"](scope["model"].points_surface) - scope["model"].output_surface)),
+        "m_surface_on_epoch": lambda scope:
+            sum(scope["list"]) / len(scope["dataset"]),
+        "m_inlet_name": "Inlet loss",
+        "m_inlet_on_batch": lambda scope:
+            float(torch.sum(scope["model"](scope["model"].points_inlet) - scope["model"].output_inlet)),
+        "m_inlet_on_epoch": lambda scope:
+            sum(scope["list"]) / len(scope["dataset"]),
+        "m_outlet_name": "Outlet loss",
+        "m_outlet_on_batch": lambda scope:
+            float(torch.sum(scope["model"](scope["model"].points_outlet) - scope["model"].output_outlet)),
+        "m_outlet_on_epoch": lambda scope:
+            sum(scope["list"]) / len(scope["dataset"]),
+        "m_top_name": "Top Boundary loss",
+        "m_top_on_batch": lambda scope:
+            float(torch.sum(scope["model"](scope["model"].points_top) - scope["model"].output_top)),
+        "m_top_on_epoch": lambda scope:
+            sum(scope["list"]) / len(scope["dataset"]),
+        "m_bottom_name": "Bottom Boundary loss",
+        "m_bottom_on_batch": lambda scope:
+            float(torch.sum(scope["model"](scope["model"].points_bottom) - scope["model"].output_bottom)),
+        "m_bottom_on_epoch": lambda scope:
             sum(scope["list"]) / len(scope["dataset"])
 
     }
+    
+    # tbPath = "/home/iagkilam/DeepCFD/tensorboard/"
+    tbPath = "../tensorboard/"
+    if not os.path.exists(tbPath):
+        os.makedirs(tbPath)
 
-    writerAdam = tb.SummaryWriter(comment="Adam_training")
+    writerAdam = tb.SummaryWriter(log_dir=tbPath + options["output"] + "_Adam", comment="Adam_training")
     # # Training model with Adam
     pinnAdam, train_metrics, train_loss, test_metrics, test_loss, last_epoch = train_model(
         model,
@@ -486,10 +519,16 @@ if __name__ == "__main__":
     state_dict = pinnAdam.state_dict()
     state_dict["neurons_list"] = neurons_list
     state_dict["architecture"] = options["net"]
-
-    torch.save(state_dict, options["output"])
-
-    writerFullbatch = tb.SummaryWriter(comment="Fullbatch_training")
+    
+    # modelPath = "/home/iagkilam/DeepCFD/models"
+    modelPath = "../models/"
+    
+    if not os.path.exists(modelPath):
+        os.makedirs(modelPath)
+        
+    torch.save(state_dict, modelPath + options["output"])
+        
+    writerFullbatch = tb.SummaryWriter(log_dir=tbPath + options["output"] + "Fullbatch", comment="Fullbatch_training")
     # Training model with L-FBGS
     pinnModel, train_metrics, train_loss, test_metrics, test_loss, last_epoch = train_model(
         pinnAdam,
@@ -512,7 +551,7 @@ if __name__ == "__main__":
     state_dict["neurons_list"] = neurons_list
     state_dict["architecture"] = options["net"]
 
-    torch.save(state_dict, options["output"])
+    torch.save(state_dict, modelPath + options["output"])
 
     if (options["visualize"]):
         # Evaluate on the mesh cell points (NOT USED IN TRAINING)
@@ -522,4 +561,8 @@ if __name__ == "__main__":
         out = pinnModel(test_x.to(options["device"]))
         sample_x = test_x.cpu().detach().numpy()
         out_y = out.cpu().detach().numpy()
-        visualize2DNavierStokes(sample_y, out_y, sample_x, savePath="./runPINN2D.png")
+        # resultPath = "/home/iagkilam/DeepCFD/results"
+        resultPath = "../results/"
+        if not os.path.exists(resultPath):
+            os.makedirs(resultPath)
+        visualize2DNavierStokes(sample_y, out_y, sample_x, savePath=resultPath + options["output"] + ".png")
