@@ -19,11 +19,13 @@ from pyDOE import lhs
 from sklearn.metrics import r2_score
 from torch.nn.utils import parameters_to_vector
 from torch_geometric.data import Data
+import torch_geometric
 import torch.utils.tensorboard as tb
 from sklearn import neighbors
 from deepcfd.models.ExperimentalModels import FeedForwardNN, GNNRegression
 net = GNNRegression
 
+torch.set_num_threads(16)
 
 def create_graph(data_x, data_y, n_neighbours=9):
     convert_tensor = False
@@ -72,27 +74,34 @@ if __name__ == "__main__":
 
     options = {
         'device': "cuda",
-        'output': "trial_PGNNmodel.pt",
+        'output': "trial.pt",
+        # 'output' : "trial.pt",
         'net': net,
         # 'learning_rate': 1e-4,
         'learning_rate': 1e-3,
-         # 'epochs': [40000, 1000],
-         # 'epochs': [10000, 1000],
-         # 'epochs': [1000, 100],
-         'epochs': [5, 2],
+        # 'epochs': [40000, 1000],
+        # 'epochs': [10000, 1000],
+        # 'epochs': [10000, 500],
+        'epochs': [2, 2],
         # 'batch_size': 1024,
         'batch_size': 1024,
         'patience': 500,
-        # 'neurons_list': [40, 40, 40, 40, 40, 40, 40, 40],
-        'neurons_list': [40, 40, 40],
+        'neurons_list': [40, 40, 40, 40, 40, 40, 40, 40],
+        # 'neurons_list': [40, 40, 40],
         # 'activation': nn.Tanh(),
-        'activation': nn.ReLU(),
+        'activation': nn.Tanh(),
         'shuffle_train': True,
         'visualize': True,
-        'show_points': True,
+        'fixed_w': False,
+        'update_freq': 50, #25
+        'init_w': [2.0, 2.0, 2.0],
+        # 'init_w': [1.0, 1.0, 1.0],
+        'max_w': 100.0,
+        'min_w': 1.0,
+        'show_points': True
     }
 
-    data = pd.read_csv('cylinderFlow2DCellData.csv')
+    data = pd.read_csv('/home/iagkilam/DeepCFD/applications/cylinderFlow2DCellData.csv')
     cylinderFlow2D = data[["x", "y", "U:0", "U:1", "p", "patchIDs"]].values
 
     points_f, output_f = cylinderFlow2D[:, 0:2], cylinderFlow2D[:, 2:5]
@@ -210,9 +219,9 @@ if __name__ == "__main__":
 
     model.nu = 0.02
     model.rho = 1.0
-    # model.alpha = options["init_w"][0]
-    # model.beta = options["init_w"][1]
-    # model.gamma = options["init_w"][2]
+    model.alpha = options["init_w"][0]
+    model.beta = options["init_w"][1]
+    model.gamma = options["init_w"][2]
     model.count = 0
 
     model.points_surface = points_surface.to(device)
@@ -253,6 +262,11 @@ if __name__ == "__main__":
         weight_decay=0.05
     )
 
+    optimizerLFBGS = torch.optim.LBFGS(
+        model.parameters(),
+        lr=1e-2
+    )
+
     config = {}
     train_loss_curve = []
     test_loss_curve = []
@@ -269,66 +283,55 @@ if __name__ == "__main__":
         train_f_curve.append(scope["train_metrics"]["ux"])
         test_f_curve.append(scope["val_metrics"]["ux"])
         
-    # def weight_grads(model, loss):
-    #     grads = []
-    #     with torch.no_grad():
-    #         for submodule in model.modules():
-    #             if isinstance(submodule, torch.nn.Linear):
-    #                 weight_grads = torch.autograd.grad(loss, submodule.weight, retain_graph=True, allow_unused=True)[0]
-    #                 bias_grads = torch.autograd.grad(loss, submodule.bias, retain_graph=True, allow_unused=True)[0]
-    #                 grads.extend([g.view(-1) for g in [weight_grads, bias_grads] if g is not None])
-    #     return torch.cat(grads).detach()
+    def weight_grads(model, loss):
+        grads = []
+        with torch.no_grad():
+            for submodule in model.modules():
+                if isinstance(submodule, torch_geometric.nn.Linear):
+                    weight_grads = torch.autograd.grad(loss, submodule.weight, retain_graph=True, allow_unused=True)[0]
+                    # bias_grads = torch.autograd.grad(loss, submodule.bias, retain_graph=True, allow_unused=True)[0]
+                    # grads.extend([g.view(-1) for g in [weight_grads, bias_grads] if g is not None])
+                    grads.extend([g.view(-1) for g in [weight_grads] if g is not None])
+        return torch.cat(grads).detach()
 
-    # def loss_weights(model, loss_residual, loss_left, loss_right, loss_top, loss_bottom, loss_surface):
-    #     delta = 0.1
-    #     grads_f = weight_grads(model, loss_residual)
-    #     grads_left = weight_grads(model, loss_left)
-    #     grads_right = weight_grads(model, loss_right)
-    #     grads_noslip = weight_grads(model, (loss_top + loss_bottom + loss_surface) / 3)
+    def loss_weights(model, loss_residual, loss_left, loss_right, loss_top, loss_bottom, loss_surface):
+        delta = 0.1
+        grads_f = weight_grads(model, loss_residual)
+        grads_left = weight_grads(model, loss_left)
+        grads_right = weight_grads(model, loss_right)
+        grads_noslip = weight_grads(model, (loss_top + loss_bottom + loss_surface) / 3)
 
-    #     # alpha_new = torch.max(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_left)).item()
-    #     # beta_new = torch.max(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_right)).item()
-    #     # gamma_new = torch.max(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_noslip)).item()
+        # alpha_new = torch.max(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_left)).item()
+        # beta_new = torch.max(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_right)).item()
+        # gamma_new = torch.max(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_noslip)).item()
 
-    #     alpha_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_left))# .item(
-    #     beta_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_right))# .item()
-    #     gamma_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_noslip))# .item()
+        alpha_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_left))# .item(
+        beta_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_right))# .item()
+        gamma_new = torch.mean(torch.abs(grads_f)).item() / torch.mean(torch.abs(grads_noslip))# .item()
 
-    #     max_value = torch.tensor(options["max_w"])
-    #     min_value = torch.tensor(options["min_w"])
-    #     alpha_new = torch.minimum(alpha_new, max_value)
-    #     alpha_new = torch.maximum(alpha_new, min_value).item()
+        max_value = torch.tensor(options["max_w"])
+        min_value = torch.tensor(options["min_w"])
+        alpha_new = torch.minimum(alpha_new, max_value)
+        alpha_new = torch.maximum(alpha_new, min_value).item()
 
-    #     beta_new = torch.minimum(beta_new, max_value)
-    #     beta_new = torch.maximum(beta_new, min_value).item()
+        beta_new = torch.minimum(beta_new, max_value)
+        beta_new = torch.maximum(beta_new, min_value).item()
 
-    #     gamma_new = torch.minimum(gamma_new, max_value)
-    #     gamma_new = torch.maximum(gamma_new, min_value).item()
+        gamma_new = torch.minimum(gamma_new, max_value)
+        gamma_new = torch.maximum(gamma_new, min_value).item()
 
-    #     alpha = (1 - delta) * model.alpha + delta * alpha_new
-    #     beta = (1 - delta) * model.beta + delta * beta_new
-    #     gamma = (1 - delta) * model.gamma + delta * gamma_new
-    #     model.alpha = alpha_new
-    #     model.beta = beta_new
-    #     model.gamma = gamma_new
-    #     model.count = 0
+        alpha = (1 - delta) * model.alpha + delta * alpha_new
+        beta = (1 - delta) * model.beta + delta * beta_new
+        gamma = (1 - delta) * model.gamma + delta * gamma_new
+        model.alpha = alpha_new
+        model.beta = beta_new
+        model.gamma = gamma_new
+        model.count = 0
 
-    #     return alpha, beta, gamma
+        return alpha, beta, gamma
 
     def loss_func(model, batch):
-        # x_batch, y_batch = batch
-        # graph = create_graph(x_batch, y_batch)
-        # x_batch = graph.x.to(device)
-        # edge_index_batch = graph.edge_index.to(device)
-        # y_batch = graph.y.to(device)
-
-        # x = x_batch[:, 0:1]
-        # y = x_batch[:, 1:2]
-        # out = model(torch.cat([x, y], dim=1), edge_index_batch.T)
-
-        # return torch.sum((y_batch - out)**2), out
         xInside, _ = batch
-        # xInside.requires_grad = True
 
         x = xInside[:, 0:1]
         y = xInside[:, 1:2]
@@ -476,19 +479,17 @@ if __name__ == "__main__":
         loss_bottom = torch.sum(loss_bottom**2)
         loss_surface = torch.sum(loss_surface**2)
 
-        # model.count += 1
-        # if options["fixed_w"]:
-        #     alpha, beta, gamma = model.alpha, model.beta, model.gamma
-        # else:
-        #     if model.count == options["update_freq"]:
-        #         alpha, beta, gamma = loss_weights(model, loss_residual, loss_left, loss_right, loss_top, loss_bottom, loss_surface)
-        #     else:
-        #         alpha, beta, gamma = model.alpha, model.beta, model.gamma
+        model.count += 1
+        if options["fixed_w"]:
+            alpha, beta, gamma = model.alpha, model.beta, model.gamma
+        else:
+            if model.count == options["update_freq"]:
+                alpha, beta, gamma = loss_weights(model, loss_residual, loss_left, loss_right, loss_top, loss_bottom, loss_surface)
+            else:
+                alpha, beta, gamma = model.alpha, model.beta, model.gamma
 
-        # return loss_residual + alpha * loss_left + beta * loss_right \
-        #     + gamma * (loss_top + loss_bottom + loss_surface), out
-        
-        return loss_residual + loss_left + loss_right + (loss_top + loss_bottom + loss_surface), out
+        return loss_residual + alpha * loss_left + beta * loss_right \
+            + gamma * (loss_top + loss_bottom + loss_surface), out
 
 
     validation_metrics = {
@@ -521,10 +522,15 @@ if __name__ == "__main__":
             sum(scope["list"]) / len(scope["dataset"])
 
     }
+    
+    tbPath = "/home/iagkilam/DeepCFD/tensorboard_gnn"
+    # tbPath = "../tensorboard_gnn/"
+    # if not os.path.exists(tbPath):
+    #     os.makedirs(tbPath)
 
-    writerAdam = tb.SummaryWriter(comment="gnn_training")
+    writerAdam = tb.SummaryWriter(log_dir=tbPath + options["output"] + "Adam", comment="Adam_training_gnn")
     # # Training model with Adam
-    gnnModel, train_metrics, train_loss, test_metrics, test_loss, last_epoch = train_model(
+    gnnAdam, train_metrics, train_loss, test_metrics, test_loss, last_epoch = train_model(
         model,
         loss_func,
         train_dataset,
@@ -539,11 +545,45 @@ if __name__ == "__main__":
         **validation_metrics
     )
     writerAdam.close()
+    state_dict = gnnAdam.state_dict()
+    state_dict["neurons_list"] = neurons_list
+    state_dict["architecture"] = options["net"]
+    
+    modelPath = "/home/iagkilam/DeepCFD/models_gnn"
+    # modelPath = "../models_gnn/"
+    
+    # if not os.path.exists(modelPath):
+    #     os.makedirs(modelPath)
+        
+    torch.save(state_dict, modelPath + "/Adam_" + options["output"])
+
+    # torch.save(state_dict, options["output"])
+    
+    writerFullbatch = tb.SummaryWriter(log_dir=tbPath + options["output"] + "Fullbatch", comment="Fullbatch_training")
+    # Training model with L-FBGS
+    gnnModel, train_metrics, train_loss, test_metrics, test_loss, last_epoch = train_model(
+        gnnAdam,
+        loss_func,
+        train_dataset,
+        test_dataset,
+        optimizerLFBGS,
+        physics_informed=True,
+        epochs=options["epochs"][1],
+        batch_size=len(train_dataset),
+        initial_epoch=last_epoch + 1,
+        device=options["device"],
+        shuffle_train=True,
+        writer=writerFullbatch,
+        **validation_metrics
+    )
+    writerAdam.close()
+    writerFullbatch.close()
     state_dict = gnnModel.state_dict()
     state_dict["neurons_list"] = neurons_list
     state_dict["architecture"] = options["net"]
 
-    torch.save(state_dict, options["output"])
+    torch.save(state_dict, modelPath + "/Fullbatch_"  + options["output"])
+
 
     if (options["visualize"]):
         # Evaluate on the mesh cell points (NOT USED IN TRAINING)
@@ -553,8 +593,17 @@ if __name__ == "__main__":
         sample_y = torch.FloatTensor(sample_y)
         test_graph = create_graph(test_x, sample_y, n_neighbours=5)
         # test_graph = create_graph(test_x, sample_y, n_neighbours=5)
-        out = gnnModel(test_x.to(options["device"]), edge_index=(test_graph.edge_index.T).to(options["device"]))
+          
+        out_ad = gnnAdam(test_x.to(options["device"]), edge_index=(test_graph.edge_index.T).to(options["device"]))
+        out_fb = gnnModel(test_x.to(options["device"]), edge_index=(test_graph.edge_index.T).to(options["device"]))
         sample_x = test_x.cpu().detach().numpy()
         sample_y = sample_y.cpu().detach().numpy()
-        out_y = out.cpu().detach().numpy()
-        visualize2DNavierStokes(sample_y, out_y, sample_x, savePath="./runPGNN.png")
+        out_y_adam = out_ad.cpu().detach().numpy()
+        out_y_fb = out_fb.cpu().detach().numpy()
+        resultPath = "/home/iagkilam/DeepCFD/results"
+        # resultPath = "../results_gnn/"
+        # if not os.path.exists(resultPath):
+        #     os.makedirs(resultPath)
+        
+        visualize2DNavierStokes(sample_y, out_y_adam, sample_x, savePath=resultPath + "/Adam_" + options["output"] + ".png")
+        visualize2DNavierStokes(sample_y, out_y_fb, sample_x, savePath=resultPath + "/Fullbatch_" + options["output"] + ".png")
