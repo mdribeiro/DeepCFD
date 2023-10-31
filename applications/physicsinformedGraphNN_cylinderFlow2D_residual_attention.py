@@ -64,6 +64,7 @@ def calc_r2(data, model, training, device):
             output = model.to("cpu")(data.tensors[0][:,0:2].to("cpu"), val_edge_index.T.to("cpu")).cpu().detach().numpy()
     model.to(device)
     target = data.tensors[1].cpu().detach().numpy()
+    target[np.isnan(target)] = 0
     value = r2_score(target, output)
     value = np.where(value < 0.0, 0., value)
     value = np.where(value == np.inf, 0., value)
@@ -74,26 +75,28 @@ if __name__ == "__main__":
 
     options = {
         'device': "cuda",
-        'output': "trial.pt",
+        'output': "GNN_25_update_freq.pt",
         # 'output' : "trial.pt",
         'net': net,
         # 'learning_rate': 1e-4,
         'learning_rate': 1e-3,
         # 'epochs': [40000, 1000],
         # 'epochs': [10000, 1000],
-        # 'epochs': [10000, 500],
-        'epochs': [2, 2],
+        'epochs': [10000, 500],
+        # 'epochs': [2, 2],
         # 'batch_size': 1024,
         'batch_size': 1024,
         'patience': 500,
         'neurons_list': [40, 40, 40, 40, 40, 40, 40, 40],
+        # 'neurons_list': [40, 40, 40, 40, 40, 40],   #smaller_net
+        # 'neurons_list': [40, 40, 40, 40, 40, 40, 40, 40, 40, 40],   #bigger_net
         # 'neurons_list': [40, 40, 40],
         # 'activation': nn.Tanh(),
         'activation': nn.Tanh(),
         'shuffle_train': True,
         'visualize': True,
         'fixed_w': False,
-        'update_freq': 50, #25
+        'update_freq': 25, #50
         'init_w': [2.0, 2.0, 2.0],
         'max_w': 100.0,
         'min_w': 1.0,
@@ -337,7 +340,7 @@ if __name__ == "__main__":
         model.count = 0
 
         return alpha, beta, gamma
-
+    
     def loss_func(model, batch):
         xInside, _ = batch
 
@@ -346,13 +349,13 @@ if __name__ == "__main__":
         ids = xInside[:, 2:3].long()
         graph = create_graph(x, y)
         x = graph.x.to(device)
-        edge_index_batch = graph.edge_index.to(device)
+        model.edge_index_batch = graph.edge_index.to(device)
         y = graph.y.to(device)
         
         x.requires_grad = True
         y.requires_grad = True
         
-        out = model(torch.cat([x, y], dim=1), edge_index_batch.T)
+        out = model(torch.cat([x, y], dim=1), model.edge_index_batch.T)
         u = out[:, 0:1]
         v = out[:, 1:2]
         p = out[:, 2:3]
@@ -360,8 +363,8 @@ if __name__ == "__main__":
         xS = model.points_surface[:, 0:1]
         yS = model.points_surface[:, 1:2]
         graphS = create_graph(xS, yS)
-        edgeS_index_batch = graphS.edge_index.to(device)
-        outS = model(torch.cat([xS, yS], dim=1), edgeS_index_batch.T)
+        model.edgeS_index_batch = graphS.edge_index.to(device)
+        outS = model(torch.cat([xS, yS], dim=1), model.edgeS_index_batch.T)
         uS = outS[:, 0:1]
         vS = outS[:, 1:2]
         pS = outS[:, 2:3]
@@ -369,8 +372,8 @@ if __name__ == "__main__":
         xL = model.points_inlet[:, 0:1]
         yL = model.points_inlet[:, 1:2]
         graphL = create_graph(xL, yL)
-        edgeL_index_batch = graphL.edge_index.to(device)
-        outL = model(torch.cat([xL, yL], dim=1), edgeL_index_batch.T)
+        model.edgeL_index_batch = graphL.edge_index.to(device)
+        outL = model(torch.cat([xL, yL], dim=1), model.edgeL_index_batch.T)
         uL = outL[:, 0:1]
         vL = outL[:, 1:2]
         pL = outL[:, 2:3]
@@ -378,8 +381,8 @@ if __name__ == "__main__":
         xR = model.points_outlet[:, 0:1]
         yR = model.points_outlet[:, 1:2]
         graphR = create_graph(xR, yR)
-        edgeR_index_batch = graphR.edge_index.to(device)
-        outR = model(torch.cat([xR, yR], dim=1), edgeR_index_batch.T)
+        model.edgeR_index_batch = graphR.edge_index.to(device)
+        outR = model(torch.cat([xR, yR], dim=1), model.edgeR_index_batch.T)
         uR = outR[:, 0:1]
         vR = outR[:, 1:2]
         pR = outR[:, 2:3]
@@ -387,8 +390,8 @@ if __name__ == "__main__":
         xT = model.points_top[:, 0:1]
         yT = model.points_top[:, 1:2]
         graphT = create_graph(xT, yT)
-        edgeT_index_batch = graphT.edge_index.to(device)
-        outT = model(torch.cat([xT, yT], dim=1), edgeT_index_batch.T)
+        model.edgeT_index_batch = graphT.edge_index.to(device)
+        outT = model(torch.cat([xT, yT], dim=1), model.edgeT_index_batch.T)
         uT = outT[:, 0:1]
         vT = outT[:, 1:2]
         pT = outT[:, 2:3]
@@ -396,8 +399,8 @@ if __name__ == "__main__":
         xB = model.points_bottom[:, 0:1]
         yB = model.points_bottom[:, 1:2]
         graphB = create_graph(xB, yB)
-        edgeB_index_batch = graphB.edge_index.to(device)
-        outB = model(torch.cat([xB, yB], dim=1), edgeB_index_batch.T)
+        model.edgeB_index_batch = graphB.edge_index.to(device)
+        outB = model(torch.cat([xB, yB], dim=1), model.edgeB_index_batch.T)
         uB = outB[:, 0:1]
         vB = outB[:, 1:2]
         pB = outB[:, 2:3]
@@ -537,11 +540,36 @@ if __name__ == "__main__":
             float(torch.sum((scope["output"][:, 2] -
                              scope["batch"][1][:, 2]) ** 2)),
         "m_p_on_epoch": lambda scope:
+            sum(scope["list"]) / len(scope["dataset"]),
+        "m_surface_name": "Surface loss",
+        "m_surface_on_batch": lambda scope:
+            float(torch.sum((scope["model"](scope["model"].points_surface, scope["model"].edgeS_index_batch.T) - scope["model"].output_surface) ** 2)),
+        "m_surface_on_epoch": lambda scope:
+            sum(scope["list"]) / len(scope["dataset"]),
+        "m_inlet_name": "Inlet loss",
+        "m_inlet_on_batch": lambda scope:
+            float(torch.sum((scope["model"](scope["model"].points_inlet, scope["model"].edgeL_index_batch.T) - scope["model"].output_inlet) ** 2)),
+        "m_inlet_on_epoch": lambda scope:
+            sum(scope["list"]) / len(scope["dataset"]),
+        "m_outlet_name": "Outlet loss",
+        "m_outlet_on_batch": lambda scope:
+            float(torch.sum((scope["model"](scope["model"].points_outlet, scope["model"].edgeR_index_batch.T) - scope["model"].output_outlet) ** 2)),
+        "m_outlet_on_epoch": lambda scope:
+            sum(scope["list"]) / len(scope["dataset"]),
+        "m_top_name": "Top Boundary loss",
+        "m_top_on_batch": lambda scope:
+            float(torch.sum((scope["model"](scope["model"].points_top, scope["model"].edgeT_index_batch.T) - scope["model"].output_top) ** 2)),
+        "m_top_on_epoch": lambda scope:
+            sum(scope["list"]) / len(scope["dataset"]),
+        "m_bottom_name": "Bottom Boundary loss",
+        "m_bottom_on_batch": lambda scope:
+            float(torch.sum((scope["model"](scope["model"].points_bottom, scope["model"].edgeB_index_batch.T) - scope["model"].output_bottom) ** 2)),
+        "m_bottom_on_epoch": lambda scope:
             sum(scope["list"]) / len(scope["dataset"])
 
     }
     
-    tbPath = "/home/iagkilam/DeepCFD/tensorboard_gnn"
+    tbPath = "/home/iagkilam/DeepCFD/tensorboard_gnn/"
     # tbPath = "../tensorboard_gnn/"
     # if not os.path.exists(tbPath):
     #     os.makedirs(tbPath)
