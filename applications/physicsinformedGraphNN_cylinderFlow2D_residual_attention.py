@@ -27,16 +27,17 @@ net = GNNRegression
 
 torch.set_num_threads(16)
 
-def create_graph(data_x, data_y, n_neighbours=9):
+def create_graph(data_x, data_y, n_neighbours=5):
     convert_tensor = False
     if isinstance(data_x, torch.Tensor):
         data_x = data_x.clone().cpu().detach().numpy()
         data_y = data_y.clone().cpu().detach().numpy()
+        data = np.column_stack((data_x, data_y))
         convert_tensor = True
-    tree = neighbors.KDTree(data_x, leaf_size=100, metric='euclidean')
-    dist, receivers_list = tree.query(data_x, k=n_neighbours)
+    tree = neighbors.KDTree(data, leaf_size=50, metric='euclidean')
+    dist, receivers_list = tree.query(data, k=n_neighbours)
 
-    num_nodes = len(data_x)
+    num_nodes = len(data)
     senders = np.repeat(range(num_nodes), [len(a) for a in receivers_list])
     receivers = np.concatenate(receivers_list, axis=0)
 
@@ -64,7 +65,6 @@ def calc_r2(data, model, training, device):
             output = model.to("cpu")(data.tensors[0][:,0:2].to("cpu"), val_edge_index.T.to("cpu")).cpu().detach().numpy()
     model.to(device)
     target = data.tensors[1].cpu().detach().numpy()
-    target[np.isnan(target)] = 0
     value = r2_score(target, output)
     value = np.where(value < 0.0, 0., value)
     value = np.where(value == np.inf, 0., value)
@@ -75,7 +75,7 @@ if __name__ == "__main__":
 
     options = {
         'device': "cuda",
-        'output': "GNN_25_update_freq.pt",
+        'output': "Graph_new3_nn5_RSA.pt",
         # 'output' : "trial.pt",
         'net': net,
         # 'learning_rate': 1e-4,
@@ -96,7 +96,7 @@ if __name__ == "__main__":
         'shuffle_train': True,
         'visualize': True,
         'fixed_w': False,
-        'update_freq': 25, #50
+        'update_freq': 50, #25
         'init_w': [2.0, 2.0, 2.0],
         'max_w': 100.0,
         'min_w': 1.0,
@@ -569,12 +569,12 @@ if __name__ == "__main__":
 
     }
     
-    tbPath = "/home/iagkilam/DeepCFD/tensorboard_gnn/"
-    # tbPath = "../tensorboard_gnn/"
+    tbPath = "/home/iagkilam/DeepCFD/tensorboard_runs_gnn/"
+    # tbPath = "../tensorboard_runs_gnn/"
     # if not os.path.exists(tbPath):
     #     os.makedirs(tbPath)
 
-    writerAdam = tb.SummaryWriter(log_dir=tbPath + options["output"] + "Adam", comment="Adam_training_gnn")
+    writerAdam = tb.SummaryWriter(log_dir=tbPath + options["output"] + "/Adam", comment="Adam_training_gnn")
     # # Training model with Adam
     gnnAdam, train_metrics, train_loss, test_metrics, test_loss, last_epoch = train_model(
         model,
@@ -595,17 +595,40 @@ if __name__ == "__main__":
     state_dict["neurons_list"] = neurons_list
     state_dict["architecture"] = options["net"]
     
-    modelPath = "/home/iagkilam/DeepCFD/models_gnn"
+    modelPath = "/home/iagkilam/DeepCFD/models_new_gnn"
     # modelPath = "../models_gnn/"
     
-    # if not os.path.exists(modelPath):
-    #     os.makedirs(modelPath)
+    if not os.path.exists(modelPath):
+        os.makedirs(modelPath)
         
     torch.save(state_dict, modelPath + "/Adam_" + options["output"])
 
     # torch.save(state_dict, options["output"])
     
-    writerFullbatch = tb.SummaryWriter(log_dir=tbPath + options["output"] + "Fullbatch", comment="Fullbatch_training")
+    if (options["visualize"]):
+        # Evaluate on the mesh cell points (NOT USED IN TRAINING)
+        test_x = data[["x", "y"]].values
+        test_x = torch.FloatTensor(test_x)
+        sample_y = data[["U:0", "U:1", "p"]].values
+        sample_y = torch.FloatTensor(sample_y)
+        test_graph = create_graph(test_x, sample_y, n_neighbours=5)
+        # test_graph = create_graph(test_x, sample_y, n_neighbours=5)
+        
+        out_ad = gnnAdam(test_x.to(options["device"]), edge_index=(test_graph.edge_index.T).to(options["device"]))
+        # out_fb = gnnModel(test_x.to(options["device"]), edge_index=(test_graph.edge_index.T).to(options["device"]))
+        sample_x = test_x.cpu().detach().numpy()
+        sample_y = sample_y.cpu().detach().numpy()
+        out_y_adam = out_ad.cpu().detach().numpy()
+        # out_y_fb = out_fb.cpu().detach().numpy()
+        resultPath = "/home/iagkilam/DeepCFD/results_gnn_new"
+        # resultPath = "../results_gnn/"
+        # if not os.path.exists(resultPath):
+        #     os.makedirs(resultPath)
+        
+        visualize2DNavierStokes(sample_y, out_y_adam, sample_x, savePath=resultPath + "/Adam_" + options["output"] + ".png")
+        # visualize2DNavierStokes(sample_y, out_y_fb, sample_x, savePath=resultPath + "/Fullbatch_" + options["output"] + ".png")
+    
+    writerFullbatch = tb.SummaryWriter(log_dir=tbPath + options["output"] + "/Fullbatch", comment="Fullbatch_training")
     # Training model with L-FBGS
     gnnModel, train_metrics, train_loss, test_metrics, test_loss, last_epoch = train_model(
         gnnAdam,
@@ -637,19 +660,19 @@ if __name__ == "__main__":
         test_x = torch.FloatTensor(test_x)
         sample_y = data[["U:0", "U:1", "p"]].values
         sample_y = torch.FloatTensor(sample_y)
+        # test_graph = create_graph(test_x, sample_y, n_neighbours=9)
         test_graph = create_graph(test_x, sample_y, n_neighbours=5)
-        # test_graph = create_graph(test_x, sample_y, n_neighbours=5)
         
-        out_ad = gnnAdam(test_x.to(options["device"]), edge_index=(test_graph.edge_index.T).to(options["device"]))
+        # out_ad = gnnAdam(test_x.to(options["device"]), edge_index=(test_graph.edge_index.T).to(options["device"]))
         out_fb = gnnModel(test_x.to(options["device"]), edge_index=(test_graph.edge_index.T).to(options["device"]))
         sample_x = test_x.cpu().detach().numpy()
         sample_y = sample_y.cpu().detach().numpy()
-        out_y_adam = out_ad.cpu().detach().numpy()
+        # out_y_adam = out_ad.cpu().detach().numpy()
         out_y_fb = out_fb.cpu().detach().numpy()
-        resultPath = "/home/iagkilam/DeepCFD/results"
+        resultPath = "/home/iagkilam/DeepCFD/results_gnn_new"
         # resultPath = "../results_gnn/"
         # if not os.path.exists(resultPath):
         #     os.makedirs(resultPath)
         
-        visualize2DNavierStokes(sample_y, out_y_adam, sample_x, savePath=resultPath + "/Adam_" + options["output"] + ".png")
+        # visualize2DNavierStokes(sample_y, out_y_adam, sample_x, savePath=resultPath + "/Adam_" + options["output"] + ".png")
         visualize2DNavierStokes(sample_y, out_y_fb, sample_x, savePath=resultPath + "/Fullbatch_" + options["output"] + ".png")
