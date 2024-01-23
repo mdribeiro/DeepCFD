@@ -12,6 +12,7 @@ from deepcfd.functions import *
 import torch.optim as optim
 from torch.utils.data import TensorDataset
 from torch.autograd import Variable
+import torch.utils.tensorboard as tb
 
 from deepcfd.models.ExperimentalModels import FeedForwardNN
 net = FeedForwardNN
@@ -20,11 +21,12 @@ net = FeedForwardNN
 def parseOpts(argv):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     output = "Re_100_1000_wd_rs_model.pt"
+    # output = "trial1.pt"
     learning_rate = 0.001
     epochs = 500
     batch_size = 32
     patience = 500
-    visualize = False
+    visualize = True
 
     try:
         opts, args = getopt.getopt(
@@ -217,6 +219,10 @@ if __name__ == "__main__":
         # loss = torch.mean(loss_f**2) + torch.mean(loss_Bdr**2) + torch.mean(loss_Initial**2)
 
         return torch.sum(loss), u
+    
+    tbPath = "/home/iagkilam/DeepCFD/burgers_tensorboard/"
+
+    writerAdam = tb.SummaryWriter(log_dir=tbPath + options["output"] + "/Adam", comment="Adam_training_gnn")
 
     # Training model with Adam
     pinnAdam, train_metrics, train_loss, test_metrics, test_loss, last_epoch = train_model(
@@ -229,6 +235,7 @@ if __name__ == "__main__":
         epochs=options["epochs"],
         batch_size=options["batch_size"],
         device=options["device"],
+        writer=writerAdam,
         m_mse_name="Total MSE",
         m_mse_on_batch=lambda scope:
             float(torch.sum((scope["output"] - scope["batch"][1]) ** 2)),
@@ -241,7 +248,26 @@ if __name__ == "__main__":
         m_f_on_epoch=lambda scope:
             sum(scope["list"]) / len(scope["dataset"])
     )
-
+    writerAdam.close()
+    state_dict_Adam = pinnAdam.state_dict()
+    state_dict_Adam["neurons_list"] = neurons_list
+    state_dict_Adam["architecture"] = options["net"]
+    
+    modelPath = "/home/iagkilam/DeepCFD/burgers_models"
+    
+    torch.save(state_dict_Adam, modelPath + "/Adam_" + options["output"])
+    
+    resultsPath = "/home/iagkilam/DeepCFD/burgers_results/"
+    
+    if (options["visualize"]):
+        test_Renum = 400
+        time_label = [0.25, 0.5, 0.75]
+        test_x = torch.linspace(-1, 1, 100).reshape((100, 1))
+        test_re = (torch.ones_like(test_x) * test_Renum) #.to(options["device"])
+        visualize1DBurgers(time_label, test_x, test_re, options, pinnAdam, BurgersExact, xBounds, tBounds, test_Renum,
+                            savePath= resultsPath + options["output"] +"_Adam.png")
+    
+    writerFullbatch = tb.SummaryWriter(log_dir=tbPath + options["output"] + "/Fullbatch", comment="Adam_training_gnn")
     # Training model with L-FBGS
     pinnModel, train_metrics, train_loss, test_metrics, test_loss, last_epoch = train_model(
         pinnAdam,
@@ -254,6 +280,7 @@ if __name__ == "__main__":
         batch_size=len(train_dataset),
         initial_epoch=last_epoch + 1,
         device=options["device"],
+        writer=writerFullbatch,
         m_mse_name="Total MSE",
         m_mse_on_batch=lambda scope:
             float(torch.sum((scope["output"] - scope["batch"][1]) ** 2)),
@@ -266,19 +293,22 @@ if __name__ == "__main__":
         m_f_on_epoch=lambda scope:
             sum(scope["list"]) / len(scope["dataset"])
     )
+    # writerAdam.close()
+    writerFullbatch.close()
+    state_dict_FB = pinnModel.state_dict()
+    # state_dict = pinnAdam.state_dict()
+    state_dict_FB["neurons_list"] = neurons_list
+    state_dict_FB["architecture"] = options["net"]
 
-    state_dict = pinnModel.state_dict()
-    state_dict["neurons_list"] = neurons_list
-    state_dict["architecture"] = options["net"]
-
-    torch.save(state_dict, options["output"])
+    torch.save(state_dict_FB, modelPath + "/Fullbatch_" + options["output"])
 
     if (options["visualize"]):
         test_Renum = 400
         time_label = [0.25, 0.5, 0.75]
         test_x = torch.linspace(-1, 1, 100).reshape((100, 1))
-        test_re = (torch.ones_like(test_x) * test_Renum).to(options["device"])
-        visualize1DBurgers(time_label, test_x, test_re, options, pinnModel, BurgersExact, xBounds, tBounds, test_Renum, savePath="../tmp/100_1000_Re400_1000_samplePoints_wd_rs_pinn1DBurgers.png")
+        test_re = (torch.ones_like(test_x) * test_Renum) #.to(options["device"])
+        visualize1DBurgers(time_label, test_x, test_re, options, pinnModel, BurgersExact, xBounds, tBounds, test_Renum,
+                            savePath= resultsPath + options["output"] +"_Fullbatch.png")
 
 # %run applications/physicsinformedNN.py --device "gpu" --epochs 75 --batch-size 32 --visualize True
 # %run applications/physicsinformedNN.py --device "cpu" --epochs 75 --batch-size 32 --visualize True
